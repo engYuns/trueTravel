@@ -1,0 +1,37 @@
+{
+  "name": "true-travel-backend",
+  "version": "1.0.0",
+  "description": "Backend microservices for True Travel B2B booking platform",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:gateway\" \"npm run dev:booking\" \"npm run dev:user\" \"npm run dev:payment\"",
+    "dev:gateway": "cd services/api-gateway && npm run dev",
+    "dev:booking": "cd services/booking-service && npm run dev",
+    "dev:user": "cd services/user-service && npm run dev", 
+    "dev:payment": "cd services/payment-service && npm run dev",
+    "build": "npm run build:gateway && npm run build:booking && npm run build:user && npm run build:payment",
+    "build:gateway": "cd services/api-gateway && npm run build",
+    "build:booking": "cd services/booking-service && npm run build",
+    "build:user": "cd services/user-service && npm run build",
+    "build:payment": "cd services/payment-service && npm run build",
+    "start": "cd services/api-gateway && npm start",
+    "install:all": "npm install && cd services/api-gateway && npm install && cd ../booking-service && npm install && cd ../user-service && npm install && cd ../payment-service && npm install"
+  },
+  "keywords": ["microservices", "booking", "travel", "api"],
+  "author": "True Travel",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "@types/node": "^20.8.0",
+    "typescript": "^5.2.0",
+    "ts-node": "^10.9.0",
+    "nodemon": "^3.0.0"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "morgan": "^1.10.0",
+    "dotenv": "^16.3.0"
+  }
+}

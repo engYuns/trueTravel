@@ -1,0 +1,635 @@
+"use client";
+import Image from "next/image";
+import { useLanguage } from "@/contexts/LanguageContext";
+import CountrySelector from "@/components/CountrySelector";
+
+export default function Home() {
+  const { language, setLanguage, t } = useLanguage();
+
+  return (
+    <div className="min-h-screen">
+      {/* Header */}
+      <header className="bg-black text-white px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+              <span className="text-white font-bold text-sm">TT</span>
+            </div>
+            <div>
+              <span className="text-blue-500 font-bold text-xl">truetravel</span>
+              <span className="text-white text-xl">.com</span>
+              <div className="text-xs text-gray-400">{t('header.tagline')}</div>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-6">
+            <a href={`tel:${t('contact.phone1')}`} className="text-sm hover:text-orange-500 transition-colors cursor-pointer">
+              {t('contact.phone1')}
+            </a>
+            <CountrySelector onCountrySelect={(country) => console.log('Selected:', country)}>
+              {t('header.login')}
+            </CountrySelector>
+            <button className="text-sm hover:text-blue-500 transition-colors">{t('header.application')}</button>
+            <div className="flex items-center space-x-2">
+              <select 
+                className="bg-transparent text-white text-sm border border-gray-600 rounded px-2 py-1"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as 'en' | 'ku')}
+              >
+                <option value="en" className="bg-black">🇺🇸 English</option>
+                <option value="ku" className="bg-black">🏳️ کوردی</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <main className="relative min-h-screen">
+        <div className="absolute inset-0">
+          <Image
+            src="/api/placeholder/1920/1080"
+            alt="Beautiful mountain village with lake"
+            fill
+            className="object-cover"
+            priority
+          />
+          <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+        </div>
+        
+        <div className="relative z-10 flex items-center min-h-screen">
+          <div className="max-w-7xl mx-auto px-6 py-20">
+            <div className={`max-w-2xl ${language === 'ku' ? 'text-right' : 'text-left'}`}>
+              <h1 className={`text-white text-6xl font-bold leading-tight mb-8 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('hero.title.marketplace')}
+                <br />
+                {t('hero.title.travel')} <span className="text-blue-500 italic">{t('hero.title.ever')}</span>
+                <div className={`w-20 h-1 bg-blue-500 mt-2 ${language === 'ku' ? 'mr-auto' : ''}`}></div>
+              </h1>
+              
+              <div className="bg-blue-500 text-white py-6 px-8 rounded-lg inline-block">
+                <div className={`text-2xl font-bold ${language === 'ku' ? 'font-arabic' : ''}`}>{t('hero.approved.title')}</div>
+                <div className={`text-lg opacity-90 ${language === 'ku' ? 'font-arabic' : ''}`}>{t('hero.approved.subtitle')}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
+          <div className="w-6 h-10 border-2 border-white rounded-full flex justify-center">
+            <div className="w-1 h-3 bg-white rounded-full mt-2 animate-pulse"></div>
+          </div>
+        </div>
+      </main>
+
+      {/* Future Content Section */}
+      <section className="py-20 bg-gray-50">
+        {/* Trust Section */}
+        <div className="max-w-7xl mx-auto px-6 text-center mb-20">
+          <h2 className={`text-4xl font-bold text-gray-800 mb-6 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            {t('trust.title')}
+          </h2>
+          <p className={`text-xl text-orange-500 mb-4 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            {t('trust.subtitle')}
+          </p>
+          <p className={`text-lg text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            {t('trust.description')}
+          </p>
+        </div>
+
+        {/* Airline Partners */}
+        <div className="max-w-7xl mx-auto px-6 mb-20">
+          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            Airline <span className="text-blue-500">Partners</span>
+          </h3>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-8 items-center opacity-60">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">AEGEAN</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-blue-500">Air Europa</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-red-600">AIR FRANCE</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-blue-700">BRITISH AIRWAYS</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-red-500">Emirates</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-blue-600">flydubai</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Services Section */}
+        <div className="max-w-7xl mx-auto px-6 mb-20">
+          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            Our <span className="text-blue-500">Services</span>
+          </h3>
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Flight Ticket */}
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-blue-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </div>
+              <h4 className={`text-xl font-bold text-gray-800 mb-3 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.flight.title')}
+              </h4>
+              <p className={`text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.flight.description')}
+              </p>
+            </div>
+
+            {/* Hotel */}
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-blue-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1" />
+                </svg>
+              </div>
+              <h4 className={`text-xl font-bold text-gray-800 mb-3 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.hotel.title')}
+              </h4>
+              <p className={`text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.hotel.description')}
+              </p>
+            </div>
+
+            {/* Transfer */}
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-blue-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <h4 className={`text-xl font-bold text-gray-800 mb-3 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.transfer.title')}
+              </h4>
+              <p className={`text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.transfer.description')}
+              </p>
+            </div>
+
+            {/* Rent a Car */}
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-blue-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                </svg>
+              </div>
+              <h4 className={`text-xl font-bold text-gray-800 mb-3 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.car.title')}
+              </h4>
+              <p className={`text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.car.description')}
+              </p>
+            </div>
+
+            {/* Tour */}
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-blue-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <h4 className={`text-xl font-bold text-gray-800 mb-3 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.tour.title')}
+              </h4>
+              <p className={`text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.tour.description')}
+              </p>
+            </div>
+
+            {/* Visa */}
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-blue-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h4 className={`text-xl font-bold text-gray-800 mb-3 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.visa.title')}
+              </h4>
+              <p className={`text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>
+                {t('services.visa.description')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Statistics Section */}
+        <div className="max-w-7xl mx-auto px-6 mb-20">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div>
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-blue-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="text-4xl font-bold text-blue-500 mb-2">47</div>
+              <div className={`text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>Country</div>
+            </div>
+            <div>
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-blue-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1" />
+                </svg>
+              </div>
+              <div className="text-4xl font-bold text-blue-500 mb-2">21</div>
+              <div className={`text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>GSA Office</div>
+            </div>
+            <div>
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-blue-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <div className="text-4xl font-bold text-blue-500 mb-2">5000+</div>
+              <div className={`text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>Agency</div>
+            </div>
+            <div>
+              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center bg-blue-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                </svg>
+              </div>
+              <div className="text-4xl font-bold text-blue-500 mb-2">12500+</div>
+              <div className={`text-gray-600 ${language === 'ku' ? 'font-arabic' : ''}`}>User</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* XML Partners Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            XML <span className="text-blue-500">Partners</span>
+          </h3>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-8 items-center opacity-60">
+            <div className="text-center text-gray-400 font-bold">SABRE</div>
+            <div className="text-center text-gray-400 font-bold">EKAR GLOBAL</div>
+            <div className="text-center text-gray-400 font-bold">enterprise</div>
+            <div className="text-center text-gray-400 font-bold">escalabeds</div>
+            <div className="text-center text-gray-400 font-bold">Europcar</div>
+            <div className="text-center text-gray-400 font-bold">Expedia</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Our Products Section */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            Our Products
+          </h3>
+          <div className="grid md:grid-cols-4 gap-6">
+            <div className="relative group overflow-hidden rounded-lg">
+              <Image
+                src="/api/placeholder/300/200"
+                alt="Car Rental"
+                width={300}
+                height={200}
+                className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                <h4 className="text-white text-xl font-bold">Car Rental</h4>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded-lg">
+              <Image
+                src="/api/placeholder/300/200"
+                alt="Transfer Services"
+                width={300}
+                height={200}
+                className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                <h4 className="text-white text-xl font-bold">Transfer Services</h4>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded-lg">
+              <Image
+                src="/api/placeholder/300/200"
+                alt="Package Tours"
+                width={300}
+                height={200}
+                className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                <h4 className="text-white text-xl font-bold">Package Tours</h4>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded-lg">
+              <Image
+                src="/api/placeholder/300/200"
+                alt="Accessibility"
+                width={300}
+                height={200}
+                className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                <h4 className="text-white text-xl font-bold">Accessibility</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* About Us Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            About Us
+          </h3>
+          <div className="grid md:grid-cols-4 gap-6">
+            <div className="relative group overflow-hidden rounded-lg">
+              <Image
+                src="/api/placeholder/300/200"
+                alt="Accounting and Reporting"
+                width={300}
+                height={200}
+                className="w-full h-48 object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-end p-4">
+                <h4 className="text-white text-lg font-bold">Accounting and Reporting</h4>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded-lg">
+              <Image
+                src="/api/placeholder/300/200"
+                alt="Who We Are"
+                width={300}
+                height={200}
+                className="w-full h-48 object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-end p-4">
+                <h4 className="text-white text-lg font-bold">Who We Are?</h4>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded-lg">
+              <Image
+                src="/api/placeholder/300/200"
+                alt="Accounting and Reporting"
+                width={300}
+                height={200}
+                className="w-full h-48 object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-end p-4">
+                <h4 className="text-white text-lg font-bold">Accounting and Reporting</h4>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded-lg">
+              <Image
+                src="/api/placeholder/300/200"
+                alt="Who We Are"
+                width={300}
+                height={200}
+                className="w-full h-48 object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-end p-4">
+                <h4 className="text-white text-lg font-bold">Who We Are?</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Our Events Section */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            Our Events
+          </h3>
+          <div className="grid md:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className="relative group overflow-hidden rounded-lg">
+                <Image
+                  src="/api/placeholder/300/200"
+                  alt="Our Events"
+                  width={300}
+                  height={200}
+                  className="w-full h-48 object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-center justify-center">
+                  <h4 className="text-white text-2xl font-bold italic">Our Events</h4>
+                </div>
+                <div className="p-4 bg-white">
+                  <p className="text-sm text-gray-600">March 31, 2017 Turkish Republic of Northern Cyprus Travel Agents</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Our Fairs Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            Our Fairs
+          </h3>
+          <div className="grid md:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className="relative group overflow-hidden rounded-lg">
+                <Image
+                  src="/api/placeholder/300/200"
+                  alt="Our Fairs"
+                  width={300}
+                  height={200}
+                  className="w-full h-48 object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-center justify-center">
+                  <h4 className="text-white text-2xl font-bold italic">Our Fairs</h4>
+                </div>
+                <div className="p-4 bg-white">
+                  <p className="text-sm text-gray-600">January 30 - February 2, 2020 EMITT</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Our Awards Section */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            Our Awards
+          </h3>
+          <div className="grid md:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className="relative group overflow-hidden rounded-lg">
+                <Image
+                  src="/api/placeholder/300/200"
+                  alt="Our Awards"
+                  width={300}
+                  height={200}
+                  className="w-full h-48 object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-br from-orange-400 via-yellow-400 to-orange-600 opacity-80 flex items-center justify-center">
+                  <h4 className="text-white text-2xl font-bold italic">Our Awards</h4>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* HR Activities Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            Human Resources Activities
+          </h3>
+          <div className="grid md:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className="bg-orange-100 rounded-lg p-6 text-center">
+                <div className="w-20 h-20 mx-auto mb-4 bg-blue-500 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <h4 className="text-lg font-bold text-gray-800 mb-2">HR activities</h4>
+                <p className="text-sm text-gray-600">February 22, 2024 Beykent University Career Day</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Career Opportunities Section */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
+            Career Opportunities
+          </h3>
+          <div className="grid md:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className="bg-blue-500 rounded-lg p-6 text-center text-white">
+                <div className="mb-4">
+                  <div className="w-16 h-16 mx-auto bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <h4 className="text-lg font-bold mb-2">CAREER OPPORTUNITIES</h4>
+                <p className="text-sm opacity-90">🎉 A New Adventure Awaits! 🎉</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-16">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Company Info */}
+            <div>
+              <div className="flex items-center space-x-2 mb-6">
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M21 8c0-.6-.4-1-1-1h-3V6c0-.6-.4-1-1-1s-1 .4-1 1v1H9V6c0-.6-.4-1-1-1s-1 .4-1 1v1H4c-.6 0-1 .4-1 1s.4 1 1 1h1v8c0 1.7 1.3 3 3 3h8c1.7 0 3-1.3 3-3V9h1c.6 0 1-.4 1-1zM8 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm8 0c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                  </svg>
+                </div>
+                <div>
+                  <span className="text-orange-500 font-bold text-xl">truetravel</span>
+                  <span className="text-white text-xl">.com</span>
+                  <div className="text-xs text-gray-400">{t('header.tagline')}</div>
+                </div>
+              </div>
+              <p className="text-gray-300 mb-4">
+                {t('company.about')}
+              </p>
+              <div className="flex space-x-4">
+                <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center hover:bg-blue-500 transition-colors cursor-pointer">
+                  <span className="text-white text-lg">f</span>
+                </div>
+                <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center hover:bg-blue-500 transition-colors cursor-pointer">
+                  <span className="text-white text-lg">t</span>
+                </div>
+                <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center hover:bg-blue-500 transition-colors cursor-pointer">
+                  <span className="text-white text-lg">in</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Pages */}
+            <div>
+              <h4 className="text-lg font-bold mb-4">PAGES</h4>
+              <ul className="space-y-2">
+                <li>                <a href="#" className="text-gray-300 hover:text-blue-500">▶ Homepage</a></li>
+                <li>                <a href="#" className="text-gray-300 hover:text-blue-500">▶ Contact</a></li>
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h4 className="text-lg font-bold mb-4">CONTACT</h4>
+              <div className="space-y-3">
+                <a 
+                  href="https://maps.google.com/?q=Gulan St Near Nazdar Bamarny Hospital Erbil, 44002, Iraq" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-gray-300 hover:text-orange-500 transition-colors cursor-pointer flex items-center gap-3"
+                >
+                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  {t('contact.address')}
+                </a>
+                <a 
+                  href={`tel:${t('contact.phone1')}`} 
+                  className="text-gray-300 hover:text-blue-500 transition-colors cursor-pointer flex items-center gap-3"
+                >
+                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
+                  {t('contact.phone1')}
+                </a>
+                <a 
+                  href={`tel:${t('contact.phone2')}`} 
+                  className="text-gray-300 hover:text-blue-500 transition-colors cursor-pointer flex items-center gap-3"
+                >
+                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
+                  {t('contact.phone2')}
+                </a>
+                <a 
+                  href={`mailto:${t('contact.email')}`} 
+                  className="text-gray-300 hover:text-blue-500 transition-colors cursor-pointer flex items-center gap-3"
+                >
+                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  {t('contact.email')}
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
