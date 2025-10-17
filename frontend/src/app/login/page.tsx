@@ -1,19 +1,28 @@
 'use client';
 
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, Suspense, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 function LoginContent() {
   const { t } = useLanguage();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [selectedCountry, setSelectedCountry] = useState('TR');
   const [credentials, setCredentials] = useState({
     username: '',
     password: ''
   });
 
-  const selectedCountry = searchParams.get('country') || 'TR';
+  // Get country from URL on client side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const country = urlParams.get('country');
+      if (country) {
+        setSelectedCountry(country);
+      }
+    }
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
