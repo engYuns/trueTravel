@@ -30,3 +30,136 @@ body {
   font-family: 'Noto Sans Arabic', sans-serif;
   direction: rtl;
 }
+
+/* Mobile Optimizations */
+@media (max-width: 640px) {
+  /* Improved touch targets for mobile */
+  button, input, select, textarea {
+    min-height: 44px;
+  }
+  
+  /* Better scrolling on mobile */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .overflow-x-auto::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Prevent horizontal overflow */
+  body {
+    overflow-x: hidden;
+  }
+  
+  /* Better text sizing on mobile */
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar for desktop */
+@media (min-width: 641px) {
+  .overflow-x-auto::-webkit-scrollbar {
+    height: 6px;
+  }
+  
+  .overflow-x-auto::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+  }
+  
+  .overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+  }
+  
+  .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
+}
+
+/* Global Mobile Optimizations */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Touch optimizations */
+.touch-pan-x {
+  touch-action: pan-x;
+}
+
+.touch-pan-y {
+  touch-action: pan-y;
+}
+
+.touch-manipulation {
+  touch-action: manipulation;
+}
+
+/* Scroll behavior improvements */
+.scroll-smooth-mobile {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile-optimized interactions */
+@media (max-width: 640px) {
+  button, .btn, [role="button"] {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  
+  input, select, textarea {
+    min-height: 44px;
+    -webkit-appearance: none;
+    appearance: none;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  /* Better tap targets */
+  a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  /* Improved spacing */
+  .mobile-spacing > * + * {
+    margin-top: 1rem;
+  }
+}
+
+/* Container improvements for mobile */
+.mobile-container {
+  padding-left: 1rem;
+  padding-right: 1rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 640px) {
+  .mobile-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mobile-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}

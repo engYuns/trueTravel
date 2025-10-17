@@ -12,6 +12,7 @@ function LoginContent() {
     username: '',
     password: ''
   });
+  const [showScrollUp, setShowScrollUp] = useState(false);
 
   // Get country from URL on client side
   useEffect(() => {
@@ -23,6 +24,20 @@ function LoginContent() {
       }
     }
   }, []);
+
+  // Scroll up button visibility
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollUp(window.scrollY > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,11 +52,23 @@ function LoginContent() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex">
+    <div className="min-h-screen bg-black flex flex-col lg:flex-row">
       {/* Left Panel - Login Form */}
-      <div className="w-1/2 flex flex-col justify-center items-start px-16 py-8">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center items-start px-4 sm:px-8 lg:px-16 py-8 order-2 lg:order-1">
         {/* Header */}
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-end text-white">
+        <div className="lg:absolute top-4 left-4 right-4 flex items-center justify-between lg:justify-end text-white mb-6 lg:mb-0">
+          <button 
+            onClick={() => router.push('/')}
+            className="lg:hidden flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer"
+          >
+            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+              <span className="text-white font-bold text-sm">TT</span>
+            </div>
+            <div>
+              <span className="text-blue-500 font-bold text-lg">truetravel</span>
+              <span className="text-white text-lg">.com</span>
+            </div>
+          </button>
           <div className="flex items-center space-x-2">
             <div className="flex items-center space-x-2 bg-gray-800 px-3 py-1 rounded">
               {selectedCountry === 'TR' && <span>🇹🇷</span>}
@@ -56,8 +83,11 @@ function LoginContent() {
           </div>
         </div>
 
-        {/* Logo */}
-        <div className="mb-8">
+        {/* Logo - Hidden on Mobile (shown in header) */}
+        <button 
+          onClick={() => router.push('/')}
+          className="mb-6 sm:mb-8 hidden lg:block hover:opacity-80 transition-opacity cursor-pointer text-left"
+        >
           <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mb-2">
             <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M21 8c0-.6-.4-1-1-1h-3V6c0-.6-.4-1-1-1s-1 .4-1 1v1H9V6c0-.6-.4-1-1-1s-1 .4-1 1v1H4c-.6 0-1 .4-1 1s.4 1 1 1h1v8c0 1.7 1.3 3 3 3h8c1.7 0 3-1.3 3-3V9h1c.6 0 1-.4 1-1zM8 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm8 0c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
@@ -66,12 +96,12 @@ function LoginContent() {
           <span className="text-blue-500 font-bold text-lg">truetravel</span>
           <span className="text-white text-lg">.com</span>
           <div className="text-xs text-gray-400 mt-1">{t('header.tagline')}</div>
-        </div>
+        </button>
 
         {/* Login Form */}
-        <div className="w-full max-w-md">
-          <h1 className="text-white text-2xl font-light mb-2">Log-in</h1>
-          <p className="text-gray-400 text-sm mb-8">
+        <div className="w-full max-w-md mx-auto lg:mx-0">
+          <h1 className="text-white text-xl sm:text-2xl font-light mb-2 text-center lg:text-left">Log-in</h1>
+          <p className="text-gray-400 text-sm mb-6 sm:mb-8 text-center lg:text-left">
             Please use your user name and password to log-in
           </p>
 
@@ -98,13 +128,13 @@ function LoginContent() {
               />
             </div>
 
-            <div className="flex items-center justify-between mt-8">
-              <a href="#" className="text-orange-500 hover:text-orange-400 text-sm">
+            <div className="flex flex-col sm:flex-row items-center justify-between mt-8 space-y-4 sm:space-y-0">
+              <a href="#" className="text-orange-500 hover:text-orange-400 text-sm order-2 sm:order-1">
                 Forgot Password ?
               </a>
               <button
                 type="submit"
-                className="bg-white text-black px-8 py-3 rounded hover:bg-gray-100 transition-colors font-medium"
+                className="bg-white text-black px-6 sm:px-8 py-3 rounded hover:bg-gray-100 transition-colors font-medium w-full sm:w-auto order-1 sm:order-2"
               >
                 Log-in
               </button>
@@ -113,7 +143,10 @@ function LoginContent() {
         </div>
 
         {/* Bottom Logo */}
-        <div className="absolute bottom-8 left-16">
+        <button 
+          onClick={() => router.push('/')}
+          className="hidden lg:block absolute bottom-8 left-4 sm:left-8 lg:left-16 hover:opacity-80 transition-opacity cursor-pointer text-left"
+        >
           <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mb-2">
             <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M21 8c0-.6-.4-1-1-1h-3V6c0-.6-.4-1-1-1s-1 .4-1 1v1H9V6c0-.6-.4-1-1-1s-1 .4-1 1v1H4c-.6 0-1 .4-1 1s.4 1 1 1h1v8c0 1.7 1.3 3 3 3h8c1.7 0 3-1.3 3-3V9h1c.6 0 1-.4 1-1zM8 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm8 0c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
@@ -121,11 +154,11 @@ function LoginContent() {
           </div>
           <span className="text-blue-500 font-bold text-sm">truetravel</span>
           <span className="text-white text-sm">.com</span>
-        </div>
+        </button>
       </div>
 
-      {/* Right Panel - Dubai Promotion */}
-      <div className="w-1/2 relative">
+      {/* Right Panel - Dubai Promotion (Hidden on Mobile) */}
+      <div className="hidden lg:block w-full lg:w-1/2 relative order-1 lg:order-2">
         <div className="h-full relative bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600">
           {/* Beach Scene Background */}
           <div className="absolute inset-0 opacity-30">
@@ -141,7 +174,7 @@ function LoginContent() {
           </div>
           
           {/* Content */}
-          <div className="relative h-full flex flex-col justify-center items-center text-white p-12">
+          <div className="relative h-full flex flex-col justify-center items-center text-white p-6 sm:p-8 lg:p-12">
             {/* True Travel Logo */}
             <div className="absolute top-8 right-8">
               <div className="text-white font-bold text-2xl tracking-wider">
@@ -196,6 +229,19 @@ function LoginContent() {
           </span>
         </p>
       </div>
+
+      {/* Scroll Up Button */}
+      {showScrollUp && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition-all duration-300 z-50 flex items-center justify-center"
+          aria-label="Scroll to top"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
