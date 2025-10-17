@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function Dashboard() {
-  const { t, language, setLanguage } = useLanguage();
+  const { t } = useLanguage();
   const router = useRouter();
   const [currentTime, setCurrentTime] = useState(new Date());
 
