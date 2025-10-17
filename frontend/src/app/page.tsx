@@ -1,4 +1,5 @@
 "use client";
+// Force deployment update - Bamarny Hospital fixed
 import Image from "next/image";
 import { useLanguage } from "@/contexts/LanguageContext";
 import CountrySelector from "@/components/CountrySelector";
