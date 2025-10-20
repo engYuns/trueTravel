@@ -7,23 +7,11 @@ import { useRouter } from 'next/navigation';
 function LoginContent() {
   const { t } = useLanguage();
   const router = useRouter();
-  const [selectedCountry, setSelectedCountry] = useState('TR');
   const [credentials, setCredentials] = useState({
     username: '',
     password: ''
   });
   const [showScrollUp, setShowScrollUp] = useState(false);
-
-  // Get country from URL on client side
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const country = urlParams.get('country');
-      if (country) {
-        setSelectedCountry(country);
-      }
-    }
-  }, []);
 
   // Scroll up button visibility
   useEffect(() => {
@@ -46,7 +34,6 @@ function LoginContent() {
       // Set cookie for authentication (in real app, this would be JWT token)
       document.cookie = `isLoggedIn=true; path=/; max-age=86400`; // 24 hours
       document.cookie = `userEmail=${credentials.username}; path=/; max-age=86400`;
-      document.cookie = `selectedCountry=${selectedCountry}; path=/; max-age=86400`;
       router.push('/dashboard');
     }
   };
@@ -69,18 +56,6 @@ function LoginContent() {
               <span className="text-white text-lg">.com</span>
             </div>
           </button>
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center space-x-2 bg-gray-800 px-3 py-1 rounded">
-              {selectedCountry === 'TR' && <span>🇹🇷</span>}
-              {selectedCountry === 'IR' && <span>🇮🇷</span>}
-              {selectedCountry === 'IQ' && <span>🇮🇶</span>}
-              {selectedCountry === 'LY' && <span>🇱🇾</span>}
-              {selectedCountry === 'AE' && <span>🇦🇪</span>}
-              <span className="text-white text-sm">{selectedCountry}</span>
-            </div>
-            <img src="/api/placeholder/24/18" alt="UK Flag" className="w-6 h-4" />
-            <span className="text-white">E</span>
-          </div>
         </div>
 
         {/* Logo - Hidden on Mobile (shown in header) */}
@@ -225,7 +200,7 @@ function LoginContent() {
         <p className="text-gray-400 text-sm">
           Copyright © 2025. Powered by{' '}
           <span className="bg-yellow-500 text-black px-2 py-1 rounded font-bold">
-            K<span className="text-yellow-500 bg-black px-1">PLUS</span>
+            Y
           </span>
         </p>
       </div>

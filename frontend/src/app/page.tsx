@@ -1,8 +1,7 @@
 "use client";
-// Force deployment update - Bamarny Hospital fixed
+// Original homepage content restored
 import Image from "next/image";
 import { useLanguage } from "@/contexts/LanguageContext";
-import CountrySelector from "@/components/CountrySelector";
 import { useState, useEffect } from "react";
 
 export default function Home() {
@@ -44,7 +43,7 @@ export default function Home() {
             {/* Logo Row */}
             <div className="flex items-center justify-between">
               <button 
-                onClick={() => window.location.reload()}
+                onClick={() => window.location.href = '/'}
                 className="flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer"
               >
                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
@@ -71,10 +70,10 @@ export default function Home() {
                 📞 {t('contact.phone1')}
               </a>
               <div className="flex items-center space-x-4">
-                <CountrySelector onCountrySelect={(country) => console.log('Selected:', country)}>
+                <a href="/login" className="text-blue-500 hover:text-blue-400 transition-colors">
                   {t('header.login')}
-                </CountrySelector>
-                <button className="text-blue-500 hover:text-blue-400 transition-colors">{t('header.application')}</button>
+                </a>
+                <a href="/dashboard" className="text-blue-500 hover:text-blue-400 transition-colors">{t('header.application')}</a>
               </div>
             </div>
             
@@ -85,7 +84,7 @@ export default function Home() {
           {/* Desktop Layout */}
           <div className="hidden md:flex items-center justify-between">
             <button 
-              onClick={() => window.location.reload()}
+              onClick={() => window.location.href = '/'}
               className="flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer"
             >
               <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
@@ -102,10 +101,10 @@ export default function Home() {
               <a href={`tel:${t('contact.phone1')}`} className="text-sm hover:text-orange-500 transition-colors cursor-pointer">
                 {t('contact.phone1')}
               </a>
-              <CountrySelector onCountrySelect={(country) => console.log('Selected:', country)}>
+              <a href="/login" className="text-sm hover:text-blue-500 transition-colors">
                 {t('header.login')}
-              </CountrySelector>
-              <button className="text-sm hover:text-blue-500 transition-colors">{t('header.application')}</button>
+              </a>
+              <a href="/dashboard" className="text-sm hover:text-blue-500 transition-colors">{t('header.application')}</a>
               <div className="flex items-center space-x-2">
                 <select 
                   className="bg-transparent text-white text-sm border border-gray-600 rounded px-2 py-1"
@@ -442,268 +441,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* XML Partners Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
-            XML <span className="text-blue-500">Partners</span>
-          </h3>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-8 items-center opacity-60">
-            <div className="text-center text-gray-400 font-bold">SABRE</div>
-            <div className="text-center text-gray-400 font-bold">EKAR GLOBAL</div>
-            <div className="text-center text-gray-400 font-bold">enterprise</div>
-            <div className="text-center text-gray-400 font-bold">escalabeds</div>
-            <div className="text-center text-gray-400 font-bold">Europcar</div>
-            <div className="text-center text-gray-400 font-bold">Expedia</div>
-          </div>
-        </div>
-      </section>
-
-      {/* Our Products Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
-            Our Products
-          </h3>
-          <div className="grid md:grid-cols-4 gap-6">
-            <div className="relative group overflow-hidden rounded-lg">
-              <Image
-                src="/api/placeholder/300/200"
-                alt="Car Rental"
-                width={300}
-                height={200}
-                className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-              />
-              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                <h4 className="text-white text-xl font-bold">Car Rental</h4>
-              </div>
-            </div>
-            <div className="relative group overflow-hidden rounded-lg">
-              <Image
-                src="/api/placeholder/300/200"
-                alt="Transfer Services"
-                width={300}
-                height={200}
-                className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-              />
-              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                <h4 className="text-white text-xl font-bold">Transfer Services</h4>
-              </div>
-            </div>
-            <div className="relative group overflow-hidden rounded-lg">
-              <Image
-                src="/api/placeholder/300/200"
-                alt="Package Tours"
-                width={300}
-                height={200}
-                className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-              />
-              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                <h4 className="text-white text-xl font-bold">Package Tours</h4>
-              </div>
-            </div>
-            <div className="relative group overflow-hidden rounded-lg">
-              <Image
-                src="/api/placeholder/300/200"
-                alt="Accessibility"
-                width={300}
-                height={200}
-                className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-              />
-              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                <h4 className="text-white text-xl font-bold">Accessibility</h4>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* About Us Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
-            About Us
-          </h3>
-          <div className="grid md:grid-cols-4 gap-6">
-            <div className="relative group overflow-hidden rounded-lg">
-              <Image
-                src="/api/placeholder/300/200"
-                alt="Accounting and Reporting"
-                width={300}
-                height={200}
-                className="w-full h-48 object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-end p-4">
-                <h4 className="text-white text-lg font-bold">Accounting and Reporting</h4>
-              </div>
-            </div>
-            <div className="relative group overflow-hidden rounded-lg">
-              <Image
-                src="/api/placeholder/300/200"
-                alt="Who We Are"
-                width={300}
-                height={200}
-                className="w-full h-48 object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-end p-4">
-                <h4 className="text-white text-lg font-bold">Who We Are?</h4>
-              </div>
-            </div>
-            <div className="relative group overflow-hidden rounded-lg">
-              <Image
-                src="/api/placeholder/300/200"
-                alt="Accounting and Reporting"
-                width={300}
-                height={200}
-                className="w-full h-48 object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-end p-4">
-                <h4 className="text-white text-lg font-bold">Accounting and Reporting</h4>
-              </div>
-            </div>
-            <div className="relative group overflow-hidden rounded-lg">
-              <Image
-                src="/api/placeholder/300/200"
-                alt="Who We Are"
-                width={300}
-                height={200}
-                className="w-full h-48 object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-end p-4">
-                <h4 className="text-white text-lg font-bold">Who We Are?</h4>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Our Events Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
-            Our Events
-          </h3>
-          <div className="grid md:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((item) => (
-              <div key={item} className="relative group overflow-hidden rounded-lg">
-                <Image
-                  src="/api/placeholder/300/200"
-                  alt="Our Events"
-                  width={300}
-                  height={200}
-                  className="w-full h-48 object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-center justify-center">
-                  <h4 className="text-white text-2xl font-bold italic">Our Events</h4>
-                </div>
-                <div className="p-4 bg-white">
-                  <p className="text-sm text-gray-600">March 31, 2017 Turkish Republic of Northern Cyprus Travel Agents</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Our Fairs Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
-            Our Fairs
-          </h3>
-          <div className="grid md:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((item) => (
-              <div key={item} className="relative group overflow-hidden rounded-lg">
-                <Image
-                  src="/api/placeholder/300/200"
-                  alt="Our Fairs"
-                  width={300}
-                  height={200}
-                  className="w-full h-48 object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent flex items-center justify-center">
-                  <h4 className="text-white text-2xl font-bold italic">Our Fairs</h4>
-                </div>
-                <div className="p-4 bg-white">
-                  <p className="text-sm text-gray-600">January 30 - February 2, 2020 EMITT</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Our Awards Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
-            Our Awards
-          </h3>
-          <div className="grid md:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((item) => (
-              <div key={item} className="relative group overflow-hidden rounded-lg">
-                <Image
-                  src="/api/placeholder/300/200"
-                  alt="Our Awards"
-                  width={300}
-                  height={200}
-                  className="w-full h-48 object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-400 via-yellow-400 to-orange-600 opacity-80 flex items-center justify-center">
-                  <h4 className="text-white text-2xl font-bold italic">Our Awards</h4>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* HR Activities Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
-            Human Resources Activities
-          </h3>
-          <div className="grid md:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((item) => (
-              <div key={item} className="bg-orange-100 rounded-lg p-6 text-center">
-                <div className="w-20 h-20 mx-auto mb-4 bg-blue-500 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-                <h4 className="text-lg font-bold text-gray-800 mb-2">HR activities</h4>
-                <p className="text-sm text-gray-600">February 22, 2024 Beykent University Career Day</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Career Opportunities Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <h3 className={`text-3xl font-bold text-center text-gray-800 mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
-            Career Opportunities
-          </h3>
-          <div className="grid md:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((item) => (
-              <div key={item} className="bg-blue-500 rounded-lg p-6 text-center text-white">
-                <div className="mb-4">
-                  <div className="w-16 h-16 mx-auto bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                </div>
-                <h4 className="text-lg font-bold mb-2">CAREER OPPORTUNITIES</h4>
-                <p className="text-sm opacity-90">🎉 A New Adventure Awaits! 🎉</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-8 sm:py-12 lg:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -742,8 +479,8 @@ export default function Home() {
             <div>
               <h4 className="text-lg font-bold mb-4">PAGES</h4>
               <ul className="space-y-2">
-                <li>                <a href="#" className="text-gray-300 hover:text-blue-500">▶ Homepage</a></li>
-                <li>                <a href="#" className="text-gray-300 hover:text-blue-500">▶ Contact</a></li>
+                <li><a href="/" className="text-gray-300 hover:text-blue-500">▶ Homepage</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-blue-500">▶ Contact</a></li>
               </ul>
             </div>
 
