@@ -26,10 +26,13 @@ export async function GET(request: NextRequest) {
     const apiEndpoint = process.env.AMADEUS_API_ENDPOINT || 'https://test.api.amadeus.com';
 
     if (!apiKey || !apiSecret) {
-      console.error('Amadeus API credentials not configured');
+      console.error('Amadeus API credentials not configured. Please add AMADEUS_API_KEY and AMADEUS_API_SECRET to Vercel environment variables.');
       return NextResponse.json(
-        { error: 'API configuration error' },
-        { status: 500 }
+        { 
+          error: 'API credentials not configured',
+          message: 'Please configure Amadeus API credentials in Vercel environment variables'
+        },
+        { status: 503 }
       );
     }
 
@@ -72,3 +75,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const dynamic = 'force-dynamic';
