@@ -14,12 +14,32 @@
 
 'use client';
 
-import { useLanguage } from '@/contexts/LanguageContext';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+// Popular cities for Middle East region
+const POPULAR_CITIES = [
+  { code: 'EBL', name: 'Erbil International Airport', city: 'Erbil', country: 'Iraq', displayText: 'EBL - Erbil International Airport' },
+  { code: 'ISU', name: 'Sulaymaniyah International Airport', city: 'Sulaymaniyah', country: 'Iraq', displayText: 'ISU - Sulaymaniyah International Airport' },
+  { code: 'BGW', name: 'Baghdad International Airport', city: 'Baghdad', country: 'Iraq', displayText: 'BGW - Baghdad International Airport' },
+  { code: 'IST', name: 'Istanbul Airport', city: 'Istanbul', country: 'Turkey', displayText: 'IST - Istanbul Airport' },
+  { code: 'ESB', name: 'Esenboğa Airport', city: 'Ankara', country: 'Turkey', displayText: 'ESB - Esenboğa Airport' },
+  { code: 'DXB', name: 'Dubai International Airport', city: 'Dubai', country: 'United Arab Emirates', displayText: 'DXB - Dubai International Airport' },
+  { code: 'AUH', name: 'Abu Dhabi International Airport', city: 'Abu Dhabi', country: 'United Arab Emirates', displayText: 'AUH - Abu Dhabi International Airport' },
+  { code: 'DOH', name: 'Hamad International Airport', city: 'Doha', country: 'Qatar', displayText: 'DOH - Hamad International Airport' },
+  { code: 'RUH', name: 'King Khalid International Airport', city: 'Riyadh', country: 'Saudi Arabia', displayText: 'RUH - King Khalid International Airport' },
+  { code: 'JED', name: 'King Abdulaziz International Airport', city: 'Jeddah', country: 'Saudi Arabia', displayText: 'JED - King Abdulaziz International Airport' },
+  { code: 'KWI', name: 'Kuwait International Airport', city: 'Kuwait City', country: 'Kuwait', displayText: 'KWI - Kuwait International Airport' },
+  { code: 'BAH', name: 'Bahrain International Airport', city: 'Manama', country: 'Bahrain', displayText: 'BAH - Bahrain International Airport' },
+  { code: 'MCT', name: 'Muscat International Airport', city: 'Muscat', country: 'Oman', displayText: 'MCT - Muscat International Airport' },
+  { code: 'IKA', name: 'Imam Khomeini International Airport', city: 'Tehran', country: 'Iran', displayText: 'IKA - Imam Khomeini International Airport' },
+  { code: 'BEY', name: 'Rafic Hariri International Airport', city: 'Beirut', country: 'Lebanon', displayText: 'BEY - Rafic Hariri International Airport' },
+  { code: 'AMM', name: 'Queen Alia International Airport', city: 'Amman', country: 'Jordan', displayText: 'AMM - Queen Alia International Airport' },
+  { code: 'DAM', name: 'Damascus International Airport', city: 'Damascus', country: 'Syria', displayText: 'DAM - Damascus International Airport' },
+  { code: 'CAI', name: 'Cairo International Airport', city: 'Cairo', country: 'Egypt', displayText: 'CAI - Cairo International Airport' },
+];
+
 export default function Dashboard() {
-  const { t } = useLanguage();
   const router = useRouter();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showScrollUp, setShowScrollUp] = useState(false);
@@ -44,8 +64,6 @@ export default function Dashboard() {
   
   // Search State
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [hasSearched, setHasSearched] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [recentSearches, setRecentSearches] = useState<any[]>([]);
   
@@ -148,7 +166,6 @@ export default function Dashboard() {
 
     setIsSearching(true);
     setSearchError("");
-    setHasSearched(true);
 
     // Save to recent searches
     const searchData = {
@@ -206,7 +223,24 @@ export default function Dashboard() {
       
       if (data.success && data.data) {
         console.log(`Found ${data.data.length} flights`);
-        setSearchResults(data.data);
+        
+        // Store results in localStorage for the results page
+        localStorage.setItem('flightSearchResults', JSON.stringify(data.data));
+        
+        // Prepare URL parameters for search criteria
+        const searchParams = new URLSearchParams({
+          from: fromLocation,
+          to: toLocation,
+          departureDate: departureDate,
+          returnDate: returnDate || '',
+          passengers: getPassengerText(),
+          class: flightClass,
+          tripType: tripType,
+          isDirect: isDirect.toString(),
+        });
+        
+        // Redirect to flight results page
+        router.push(`/flightResult?${searchParams.toString()}`);
       } else {
         throw new Error('No flights found');
       }
@@ -214,8 +248,6 @@ export default function Dashboard() {
     } catch (error: any) {
       console.error('Flight search error:', error);
       setSearchError(error.message || 'Failed to search flights. Please try again.');
-      setSearchResults([]);
-    } finally {
       setIsSearching(false);
     }
   };
@@ -264,18 +296,38 @@ export default function Dashboard() {
   // Debounced location search
   useEffect(() => {
     const searchLocations = async (keyword: string, type: 'from' | 'to') => {
-      if (keyword.length < 2) {
+      if (keyword.length === 0) {
+        // Show all popular cities when input is empty
         if (type === 'from') {
-          setFromSuggestions([]);
-          setShowFromDropdown(false);
+          setFromSuggestions(POPULAR_CITIES);
+          setShowFromDropdown(true);
         } else {
-          setToSuggestions([]);
-          setShowToDropdown(false);
+          setToSuggestions(POPULAR_CITIES);
+          setShowToDropdown(true);
         }
         return;
       }
 
-      // Set loading state
+      if (keyword.length === 1) {
+        // Filter popular cities locally for first character (instant filtering)
+        const filtered = POPULAR_CITIES.filter(city => 
+          city.code.toLowerCase().startsWith(keyword.toLowerCase()) ||
+          city.name.toLowerCase().includes(keyword.toLowerCase()) ||
+          city.city.toLowerCase().startsWith(keyword.toLowerCase()) ||
+          city.country.toLowerCase().includes(keyword.toLowerCase())
+        );
+        
+        if (type === 'from') {
+          setFromSuggestions(filtered.length > 0 ? filtered : POPULAR_CITIES);
+          setShowFromDropdown(true);
+        } else {
+          setToSuggestions(filtered.length > 0 ? filtered : POPULAR_CITIES);
+          setShowToDropdown(true);
+        }
+        return;
+      }
+
+      // Set loading state for API search (2+ characters)
       if (type === 'from') {
         setIsLoadingFrom(true);
       } else {
@@ -306,6 +358,16 @@ export default function Dashboard() {
       }
     };
 
+    // Determine debounce delay based on input length
+    const getDebounceDelay = (text: string) => {
+      if (!text || text.length < 2) return 0; // Instant for 0-1 characters
+      return 200; // Fast debounce for 2+ characters
+    };
+
+    const fromDelay = fromLocation && !fromLocation.includes(' - ') ? getDebounceDelay(fromLocation) : 0;
+    const toDelay = toLocation && !toLocation.includes(' - ') ? getDebounceDelay(toLocation) : 0;
+    const delay = Math.max(fromDelay, toDelay);
+
     const debounceTimer = setTimeout(() => {
       if (fromLocation && !fromLocation.includes(' - ')) {
         searchLocations(fromLocation, 'from');
@@ -313,7 +375,7 @@ export default function Dashboard() {
       if (toLocation && !toLocation.includes(' - ')) {
         searchLocations(toLocation, 'to');
       }
-    }, 300);
+    }, delay);
 
     return () => clearTimeout(debounceTimer);
   }, [fromLocation, toLocation]);
@@ -442,7 +504,7 @@ export default function Dashboard() {
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
               </svg>
-              <span className="font-medium">Book a Flight</span>
+              <span className="font-medium">Book a Service</span>
             </a>
             <a href="/panel" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -596,13 +658,17 @@ export default function Dashboard() {
                     value={fromLocation}
                     onChange={(e) => setFromLocation(e.target.value)}
                     onFocus={() => {
-                      if (fromSuggestions.length > 0) {
+                      // Show popular cities or current suggestions
+                      if (!fromLocation) {
+                        setFromSuggestions(POPULAR_CITIES);
+                        setShowFromDropdown(true);
+                      } else if (fromSuggestions.length > 0) {
                         setShowFromDropdown(true);
                       }
                     }}
                     onBlur={() => setTimeout(() => setShowFromDropdown(false), 200)}
                     placeholder="Type city or airport (e.g., Erbil, IST)"
-                    className="w-full px-4 py-3 pr-20 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full px-4 py-3 pr-20 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
                   />
                   <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-orange-500">
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -664,13 +730,17 @@ export default function Dashboard() {
                     value={toLocation}
                     onChange={(e) => setToLocation(e.target.value)}
                     onFocus={() => {
-                      if (toSuggestions.length > 0) {
+                      // Show popular cities or current suggestions
+                      if (!toLocation) {
+                        setToSuggestions(POPULAR_CITIES);
+                        setShowToDropdown(true);
+                      } else if (toSuggestions.length > 0) {
                         setShowToDropdown(true);
                       }
                     }}
                     onBlur={() => setTimeout(() => setShowToDropdown(false), 200)}
                     placeholder="Type city or airport (e.g., Istanbul, DXB)"
-                    className="w-full px-4 py-3 pr-20 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full px-4 py-3 pr-20 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
                   />
                   <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-orange-500">
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -719,7 +789,7 @@ export default function Dashboard() {
                   value={departureDate}
                   onChange={(e) => setDepartureDate(e.target.value)}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
                   required
                 />
               </div>
@@ -735,7 +805,7 @@ export default function Dashboard() {
                   onChange={(e) => setReturnDate(e.target.value)}
                   min={departureDate || new Date().toISOString().split('T')[0]}
                   disabled={tripType === "Oneway"}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
                 />
               </div>
             </div>
@@ -747,12 +817,10 @@ export default function Dashboard() {
                 <select
                   value={flightClass}
                   onChange={(e) => setFlightClass(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
                 >
                   <option>Economy</option>
-                  <option>Premium Economy</option>
                   <option>Business</option>
-                  <option>First Class</option>
                 </select>
               </div>
 
@@ -762,7 +830,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setShowPassengerDropdown(!showPassengerDropdown)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-left bg-white flex items-center justify-between"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-left bg-white flex items-center justify-between text-gray-900"
                 >
                   <span>{getPassengerText()}</span>
                   <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
@@ -874,12 +942,12 @@ export default function Dashboard() {
                     placeholder="0"
                     min="0"
                     step="0.01"
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
                   />
                   <select
                     value={markupType}
                     onChange={(e) => setMarkupType(e.target.value)}
-                    className="px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
                   >
                     <option value="fixed">$</option>
                     <option value="percentage">%</option>
