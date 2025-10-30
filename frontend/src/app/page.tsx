@@ -46,9 +46,13 @@ export default function Home() {
                 onClick={() => window.location.href = '/'}
                 className="flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer"
               >
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">TT</span>
-                </div>
+                <Image
+                  src="/logo.png"
+                  alt="True Travel Logo"
+                  width={40}
+                  height={40}
+                  className="object-contain"
+                />
                 <div>
                   <span className="text-blue-500 font-bold text-lg">truetravel</span>
                   <span className="text-white text-lg">.com</span>
@@ -87,9 +91,13 @@ export default function Home() {
               onClick={() => window.location.href = '/'}
               className="flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer"
             >
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">TT</span>
-              </div>
+              <Image
+                src="/logo.png"
+                alt="True Travel Logo"
+                width={50}
+                height={50}
+                className="object-contain"
+              />
               <div>
                 <span className="text-blue-500 font-bold text-xl">truetravel</span>
                 <span className="text-white text-xl">.com</span>
@@ -448,11 +456,13 @@ export default function Home() {
             {/* Company Info */}
             <div>
               <div className="flex items-center space-x-2 mb-6">
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M21 8c0-.6-.4-1-1-1h-3V6c0-.6-.4-1-1-1s-1 .4-1 1v1H9V6c0-.6-.4-1-1-1s-1 .4-1 1v1H4c-.6 0-1 .4-1 1s.4 1 1 1h1v8c0 1.7 1.3 3 3 3h8c1.7 0 3-1.3 3-3V9h1c.6 0 1-.4 1-1zM8 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm8 0c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
-                  </svg>
-                </div>
+                <Image
+                  src="/logo.png"
+                  alt="True Travel Logo"
+                  width={40}
+                  height={40}
+                  className="object-contain"
+                />
                 <div>
                   <span className="text-orange-500 font-bold text-xl">truetravel</span>
                   <span className="text-white text-xl">.com</span>
@@ -509,6 +519,17 @@ export default function Home() {
                     </svg>
                   </div>
                   {t('contact.phone2')}
+                </a>
+                <a 
+                  href={`tel:${t('contact.phone3')}`} 
+                  className="text-gray-300 hover:text-blue-500 transition-colors cursor-pointer flex items-center gap-3"
+                >
+                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
+                  {t('contact.phone3')}
                 </a>
                 <button 
                   onClick={openGoogleMaps}

@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 export default function Panel() {
   const router = useRouter();
@@ -80,11 +81,13 @@ export default function Panel() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <a href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md">
-                <svg className="w-6 h-6 text-white transform rotate-45" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                </svg>
-              </div>
+              <Image
+                src="/logo.png"
+                alt="True Travel Logo"
+                width={50}
+                height={50}
+                className="object-contain"
+              />
               <h1 className="text-2xl font-bold text-gray-800">TRUE TRAVEL</h1>
             </a>
             <div className="flex items-center space-x-6">

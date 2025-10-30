@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 // Popular cities for Middle East region
 const POPULAR_CITIES = [
@@ -44,11 +45,24 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showScrollUp, setShowScrollUp] = useState(false);
   
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+  
+  // Helper function to get date one week from today
+  const getWeekLaterDate = () => {
+    const weekLater = new Date();
+    weekLater.setDate(weekLater.getDate() + 7);
+    return weekLater.toISOString().split('T')[0];
+  };
+  
   // Flight Search State
   const [fromLocation, setFromLocation] = useState("");
   const [toLocation, setToLocation] = useState("");
-  const [departureDate, setDepartureDate] = useState("2025-10-18");
-  const [returnDate, setReturnDate] = useState("2025-10-25");
+  const [departureDate, setDepartureDate] = useState(getTodayDate());
+  const [returnDate, setReturnDate] = useState(getWeekLaterDate());
   const [tripType, setTripType] = useState("Roundtrip");
   const [flightClass, setFlightClass] = useState("Economy");
   const [activeService, setActiveService] = useState("Flight Ticket");
@@ -441,11 +455,13 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <a href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md">
-                <svg className="w-6 h-6 text-white transform rotate-45" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                </svg>
-              </div>
+              <Image
+                src="/logo.png"
+                alt="True Travel Logo"
+                width={50}
+                height={50}
+                className="object-contain"
+              />
               <h1 className="text-2xl font-bold text-gray-800">TRUE TRAVEL</h1>
             </a>
             <div className="flex items-center space-x-6">
@@ -541,6 +557,12 @@ export default function Dashboard() {
                 <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
               </svg>
               <span className="font-medium">Reports</span>
+            </a>
+            <a href="/administrator" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+              </svg>
+              <span className="font-medium">Administrator</span>
             </a>
           </div>
         </div>

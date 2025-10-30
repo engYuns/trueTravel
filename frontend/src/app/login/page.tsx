@@ -3,6 +3,7 @@
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useState, Suspense, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 function LoginContent() {
   const { t } = useLanguage();
@@ -48,9 +49,13 @@ function LoginContent() {
             onClick={() => router.push('/')}
             className="lg:hidden flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer"
           >
-            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">TT</span>
-            </div>
+            <Image
+              src="/logo.png"
+              alt="True Travel Logo"
+              width={40}
+              height={40}
+              className="object-contain"
+            />
             <div>
               <span className="text-blue-500 font-bold text-lg">truetravel</span>
               <span className="text-white text-lg">.com</span>
@@ -63,11 +68,13 @@ function LoginContent() {
           onClick={() => router.push('/')}
           className="mb-6 sm:mb-8 hidden lg:block hover:opacity-80 transition-opacity cursor-pointer text-left"
         >
-          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mb-2">
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M21 8c0-.6-.4-1-1-1h-3V6c0-.6-.4-1-1-1s-1 .4-1 1v1H9V6c0-.6-.4-1-1-1s-1 .4-1 1v1H4c-.6 0-1 .4-1 1s.4 1 1 1h1v8c0 1.7 1.3 3 3 3h8c1.7 0 3-1.3 3-3V9h1c.6 0 1-.4 1-1zM8 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm8 0c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
-            </svg>
-          </div>
+          <Image
+            src="/logo.png"
+            alt="True Travel Logo"
+            width={60}
+            height={60}
+            className="object-contain mb-2"
+          />
           <span className="text-blue-500 font-bold text-lg">truetravel</span>
           <span className="text-white text-lg">.com</span>
           <div className="text-xs text-gray-400 mt-1">{t('header.tagline')}</div>

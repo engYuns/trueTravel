@@ -69,12 +69,16 @@ const translations: Translations = {
 
   // Contact Info
   'contact.phone1': {
-    en: '+964 750 328 2768',
-    ku: '+964 750 328 2768'
+    en: '07500073003',
+    ku: '07500073003'
   },
   'contact.phone2': {
-    en: '+964 750 30 10010',
-    ku: '+964 750 30 10010'
+    en: '07500063003',
+    ku: '07500063003'
+  },
+  'contact.phone3': {
+    en: '07500043003',
+    ku: '07500043003'
   },
   'contact.email': {
     en: 'sales@truetraveliq.com',

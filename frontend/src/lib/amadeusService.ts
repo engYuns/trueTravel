@@ -209,6 +209,10 @@ export function transformFlightOffer(offer: any, index: number) {
   // Get airline info
   const carrierCode = segment.carrierCode;
   const flightNumber = `${segment.carrierCode} ${segment.number}`;
+  
+  // Get airline logo URL from multiple CDNs (Amadeus doesn't provide logos)
+  // Using Airlabs.co as it has better coverage
+  const logoUrl = `https://images.kiwi.com/airlines/64/${carrierCode}.png`;
 
   // Format times
   const departureTime = new Date(segment.departure.at).toLocaleTimeString('en-GB', {
@@ -236,7 +240,8 @@ export function transformFlightOffer(offer: any, index: number) {
     id: index + 1,
     amadeus_id: offer.id,
     airline: getAirlineName(carrierCode),
-    logo: carrierCode,
+    logo: logoUrl,
+    carrierCode: carrierCode, // Keep carrier code for matching/comparison
     flightNumber: flightNumber,
     departure: {
       time: departureTime,
