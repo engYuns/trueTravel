@@ -7,17 +7,37 @@ function FlightResultContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Search criteria from URL params
-  const [searchCriteria, setSearchCriteria] = useState({
-    from: searchParams.get('from') || '',
-    to: searchParams.get('to') || '',
-    departureDate: searchParams.get('departureDate') || '',
-    returnDate: searchParams.get('returnDate') || '',
-    passengers: searchParams.get('passengers') || '1 Adult',
-    class: searchParams.get('class') || 'Economy',
-    tripType: searchParams.get('tripType') || 'Roundtrip',
-    isDirect: searchParams.get('isDirect') === 'true',
-  });
+  // Search criteria from URL params - now editable
+  const [fromLocation, setFromLocation] = useState(searchParams.get('from') || '');
+  const [toLocation, setToLocation] = useState(searchParams.get('to') || '');
+  const [departureDate, setDepartureDate] = useState(searchParams.get('departureDate') || '');
+  const [returnDate, setReturnDate] = useState(searchParams.get('returnDate') || '');
+  const [passengers, setPassengers] = useState(searchParams.get('passengers') || '1 Adult');
+  const [flightClass, setFlightClass] = useState(searchParams.get('class') || 'Economy');
+  const [tripType, setTripType] = useState(searchParams.get('tripType') || 'Roundtrip');
+  const [isDirect, setIsDirect] = useState(searchParams.get('isDirect') === 'true');
+  const [markup, setMarkup] = useState('');
+  const [amount, setAmount] = useState('');
+  
+  // Combined search criteria object for compatibility
+  const searchCriteria = {
+    from: fromLocation,
+    to: toLocation,
+    departureDate,
+    returnDate,
+    passengers,
+    class: flightClass,
+    tripType,
+    isDirect,
+  };
+  
+  // Location autocomplete state
+  const [showFromDropdown, setShowFromDropdown] = useState(false);
+  const [showToDropdown, setShowToDropdown] = useState(false);
+  const [fromSuggestions, setFromSuggestions] = useState<any[]>([]);
+  const [toSuggestions, setToSuggestions] = useState<any[]>([]);
+  const [isLoadingFrom, setIsLoadingFrom] = useState(false);
+  const [isLoadingTo, setIsLoadingTo] = useState(false);
 
   const [flights, setFlights] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,12 +133,11 @@ function FlightResultContent() {
         // Store in localStorage
         localStorage.setItem('flightSearchResults', JSON.stringify(data.data));
         
-        // Update search criteria
-        setSearchCriteria(prev => ({
-          ...prev,
-          departureDate: newDepartureDate,
-          returnDate: newReturnDate || prev.returnDate,
-        }));
+        // Update dates
+        setDepartureDate(newDepartureDate);
+        if (newReturnDate) {
+          setReturnDate(newReturnDate);
+        }
         
         // Calculate price range from results
         if (data.data.length > 0) {
@@ -182,10 +201,7 @@ function FlightResultContent() {
   // Handle Previous Day button for RETURN flights
   const handleReturnPreviousDay = async () => {
     const newReturnDate = changeDateByDays(searchCriteria.returnDate!, -1);
-    setSearchCriteria(prev => ({
-      ...prev,
-      returnDate: newReturnDate
-    }));
+    setReturnDate(newReturnDate);
     // Reset return flight selection
     setSelectedReturnFlight(null);
     // Re-search return flights with new date
@@ -195,10 +211,7 @@ function FlightResultContent() {
   // Handle Next Day button for RETURN flights
   const handleReturnNextDay = async () => {
     const newReturnDate = changeDateByDays(searchCriteria.returnDate!, 1);
-    setSearchCriteria(prev => ({
-      ...prev,
-      returnDate: newReturnDate
-    }));
+    setReturnDate(newReturnDate);
     // Reset return flight selection
     setSelectedReturnFlight(null);
     // Re-search return flights with new date
@@ -524,7 +537,15 @@ function FlightResultContent() {
       const storedCriteria = localStorage.getItem('searchCriteria');
       if (storedCriteria) {
         const criteria = JSON.parse(storedCriteria);
-        setSearchCriteria(criteria);
+        // Update individual state variables
+        setFromLocation(criteria.from || fromLocation);
+        setToLocation(criteria.to || toLocation);
+        setDepartureDate(criteria.departureDate || departureDate);
+        setReturnDate(criteria.returnDate || returnDate);
+        setPassengers(criteria.passengers || passengers);
+        setFlightClass(criteria.class || flightClass);
+        setTripType(criteria.tripType || tripType);
+        setIsDirect(criteria.isDirect || isDirect);
         
         // Fetch fresh departure flights from API (real-time data)
         console.log('Fetching fresh departure flights from API...');
@@ -669,6 +690,131 @@ function FlightResultContent() {
     return parseInt(hours) * 60 + parseInt(minutes);
   }
 
+  // Location autocomplete functions
+  const fetchLocationSuggestions = async (query: string, setLoading: (val: boolean) => void, setSuggestions: (val: any[]) => void) => {
+    if (query.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/locations/search?keyword=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        setSuggestions(data.data.slice(0, 8));
+      }
+    } catch (error) {
+      console.error('Location search error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFromLocationChange = (value: string) => {
+    setFromLocation(value);
+    setShowFromDropdown(true);
+    fetchLocationSuggestions(value, setIsLoadingFrom, setFromSuggestions);
+  };
+
+  const handleToLocationChange = (value: string) => {
+    setToLocation(value);
+    setShowToDropdown(true);
+    fetchLocationSuggestions(value, setIsLoadingTo, setToSuggestions);
+  };
+
+  const selectFromLocation = (location: any) => {
+    const locationText = `${location.iataCode} - ${location.name}`;
+    setFromLocation(locationText);
+    setShowFromDropdown(false);
+  };
+
+  const selectToLocation = (location: any) => {
+    const locationText = `${location.iataCode} - ${location.name}`;
+    setToLocation(locationText);
+    setShowToDropdown(false);
+  };
+
+  const swapLocations = () => {
+    const temp = fromLocation;
+    setFromLocation(toLocation);
+    setToLocation(temp);
+  };
+
+  // New search function
+  const handleNewSearch = async () => {
+    if (!fromLocation || !toLocation || !departureDate) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    setFlights([]);
+    setReturnFlights([]);
+    setSelectedOutboundFlight(null);
+    setSelectedReturnFlight(null);
+
+    try {
+      const originCode = fromLocation.split(' - ')[0].trim();
+      const destinationCode = toLocation.split(' - ')[0].trim();
+
+      const requestBody = {
+        originLocationCode: originCode,
+        destinationLocationCode: destinationCode,
+        departureDate: departureDate,
+        returnDate: tripType === "Roundtrip" ? returnDate : undefined,
+        adults: 1,
+        children: 0,
+        infants: 0,
+        travelClass: flightClass,
+        nonStop: isDirect,
+        currencyCode: 'USD',
+        maxResults: 50,
+      };
+
+      const response = await fetch('/api/flights/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to search flights');
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        setFlights(data.data);
+        localStorage.setItem('flightSearchResults', JSON.stringify(data.data));
+        
+        // Update URL with new search criteria
+        const newSearchParams = new URLSearchParams({
+          from: fromLocation,
+          to: toLocation,
+          departureDate: departureDate,
+          returnDate: returnDate || '',
+          passengers: passengers,
+          class: flightClass,
+          tripType: tripType,
+          isDirect: isDirect.toString(),
+        });
+        
+        router.push(`/flightResult?${newSearchParams.toString()}`, { scroll: false });
+      } else {
+        throw new Error('No flights found');
+      }
+    } catch (error: any) {
+      console.error('Flight search error:', error);
+      setError(error.message || 'Failed to search flights');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   function formatDuration(duration: string): string {
     // Already formatted like "5h 10m", just make it pretty
     const hours = duration.match(/(\d+)h/i)?.[1] || duration.match(/(\d+)H/)?.[1] || '0';
@@ -727,57 +873,105 @@ function FlightResultContent() {
             
             <div className="bg-gray-700 bg-opacity-80 rounded-lg p-3 sm:p-4 md:p-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 mb-4">
-                {/* From */}
-                <div>
+                {/* From - with autocomplete */}
+                <div className="relative">
                   <label className="block text-xs sm:text-sm font-medium text-white mb-2">From</label>
-                  <div className="bg-white rounded-lg px-3 py-2 sm:px-4 sm:py-3 flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-gray-900 truncate">{searchCriteria.from}</span>
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 flex-shrink-0 ml-2" fill="currentColor" viewBox="0 0 24 24">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={fromLocation}
+                      onChange={(e) => handleFromLocationChange(e.target.value)}
+                      onFocus={() => setShowFromDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowFromDropdown(false), 200)}
+                      placeholder="Enter airport or city"
+                      className="w-full bg-white rounded-lg px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-900 pr-10"
+                    />
+                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-orange-500 pointer-events-none" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                     </svg>
+                    {showFromDropdown && fromSuggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {fromSuggestions.map((location, index) => (
+                          <button
+                            key={index}
+                            onClick={() => selectFromLocation(location)}
+                            className="w-full px-4 py-2 text-left hover:bg-gray-100 border-b last:border-b-0"
+                          >
+                            <div className="font-medium text-sm text-gray-900">{location.iataCode} - {location.name}</div>
+                            <div className="text-xs text-gray-500">{location.address?.cityName}, {location.address?.countryName}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Swap */}
                 <div className="hidden lg:flex items-end justify-center">
-                  <div className="bg-orange-500 rounded-lg p-3">
+                  <button
+                    onClick={swapLocations}
+                    className="bg-orange-500 hover:bg-orange-600 rounded-lg p-3 transition-colors"
+                  >
                     <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/>
                     </svg>
-                  </div>
+                  </button>
                 </div>
 
-                {/* To */}
-                <div>
+                {/* To - with autocomplete */}
+                <div className="relative">
                   <label className="block text-xs sm:text-sm font-medium text-white mb-2">To</label>
-                  <div className="bg-white rounded-lg px-3 py-2 sm:px-4 sm:py-3 flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-gray-900 truncate">{searchCriteria.to}</span>
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 flex-shrink-0 ml-2" fill="currentColor" viewBox="0 0 24 24">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={toLocation}
+                      onChange={(e) => handleToLocationChange(e.target.value)}
+                      onFocus={() => setShowToDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowToDropdown(false), 200)}
+                      placeholder="Enter airport or city"
+                      className="w-full bg-white rounded-lg px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-900 pr-10"
+                    />
+                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-orange-500 pointer-events-none" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                     </svg>
+                    {showToDropdown && toSuggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {toSuggestions.map((location, index) => (
+                          <button
+                            key={index}
+                            onClick={() => selectToLocation(location)}
+                            className="w-full px-4 py-2 text-left hover:bg-gray-100 border-b last:border-b-0"
+                          >
+                            <div className="font-medium text-sm text-gray-900">{location.iataCode} - {location.name}</div>
+                            <div className="text-xs text-gray-500">{location.address?.cityName}, {location.address?.countryName}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Departure Date */}
+                {/* Departure Date - editable */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-white mb-2">Departure Date</label>
-                  <div className="bg-white rounded-lg px-3 py-2 sm:px-4 sm:py-3 flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-gray-900">{searchCriteria.departureDate}</span>
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                  </div>
+                  <input
+                    type="date"
+                    value={departureDate}
+                    onChange={(e) => setDepartureDate(e.target.value)}
+                    className="w-full bg-white rounded-lg px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-900"
+                  />
                 </div>
 
-                {/* Return Date */}
+                {/* Return Date - editable */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-white mb-2">Return Date</label>
-                  <div className="bg-white rounded-lg px-3 py-2 sm:px-4 sm:py-3 flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-gray-900">{searchCriteria.returnDate || 'N/A'}</span>
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                  </div>
+                  <input
+                    type="date"
+                    value={returnDate}
+                    onChange={(e) => setReturnDate(e.target.value)}
+                    disabled={tripType !== 'Roundtrip'}
+                    className="w-full bg-white rounded-lg px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-900 disabled:bg-gray-200"
+                  />
                 </div>
               </div>
 
@@ -787,8 +981,9 @@ function FlightResultContent() {
                   {['Oneway', 'Roundtrip', 'Multipoint +'].map((type) => (
                     <button
                       key={type}
+                      onClick={() => setTripType(type)}
                       className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-                        searchCriteria.tripType === type
+                        tripType === type
                           ? 'bg-blue-500 text-white'
                           : 'bg-gray-600 text-white hover:bg-gray-500'
                       }`}
@@ -799,20 +994,33 @@ function FlightResultContent() {
                 </div>
 
                 <div>
-                  <select className="w-full px-4 py-3 bg-white rounded-lg text-sm text-gray-900">
-                    <option>{searchCriteria.class}</option>
-                  </select>
-                </div>
-
-                <div>
-                  <select className="w-full px-4 py-3 bg-white rounded-lg text-sm text-gray-900">
-                    <option>{searchCriteria.passengers}</option>
+                  <select 
+                    value={flightClass}
+                    onChange={(e) => setFlightClass(e.target.value)}
+                    className="w-full px-4 py-3 bg-white rounded-lg text-sm text-gray-900"
+                  >
+                    <option value="Economy">Economy</option>
+                    <option value="Premium Economy">Premium Economy</option>
+                    <option value="Business">Business</option>
+                    <option value="First">First Class</option>
                   </select>
                 </div>
 
                 <div>
                   <input
                     type="text"
+                    value={passengers}
+                    onChange={(e) => setPassengers(e.target.value)}
+                    placeholder="1 Adult"
+                    className="w-full px-4 py-3 bg-white rounded-lg text-sm text-gray-900"
+                  />
+                </div>
+
+                <div>
+                  <input
+                    type="text"
+                    value={markup}
+                    onChange={(e) => setMarkup(e.target.value)}
                     placeholder="Markup :"
                     className="w-full px-4 py-3 bg-white rounded-lg text-sm text-gray-900 placeholder-gray-500"
                   />
@@ -821,6 +1029,8 @@ function FlightResultContent() {
                 <div>
                   <input
                     type="text"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
                     placeholder="Amount"
                     className="w-full px-4 py-3 bg-white rounded-lg text-sm text-gray-900 placeholder-gray-500"
                   />
@@ -832,14 +1042,14 @@ function FlightResultContent() {
                 <label className="flex items-center space-x-2 text-white cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={searchCriteria.isDirect}
-                    className="w-5 h-5 rounded border-gray-300"
-                    readOnly
+                    checked={isDirect}
+                    onChange={(e) => setIsDirect(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300 cursor-pointer"
                   />
                   <span className="text-sm font-medium">Direct</span>
                 </label>
                 <label className="flex items-center space-x-2 text-white cursor-pointer">
-                  <input type="checkbox" className="w-5 h-5 rounded border-gray-300" />
+                  <input type="checkbox" className="w-5 h-5 rounded border-gray-300 cursor-pointer" />
                   <span className="text-sm font-medium">Advanced Search</span>
                 </label>
               </div>
@@ -848,7 +1058,7 @@ function FlightResultContent() {
             {/* Search Button */}
             <div className="mt-4 flex justify-center sm:justify-end">
               <button
-                onClick={handleSearchFlights}
+                onClick={handleNewSearch}
                 disabled={isLoading}
                 className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 sm:px-8 py-3 rounded-lg font-medium flex items-center justify-center space-x-2 transition-colors"
               >
