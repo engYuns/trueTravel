@@ -12,6 +12,16 @@ const nextConfig: NextConfig = {
     // your project has type errors.
     ignoreBuildErrors: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.kiwi.com',
+        port: '',
+        pathname: '/airlines/**',
+      },
+    ],
+  },
 };
 
 export default nextConfig;

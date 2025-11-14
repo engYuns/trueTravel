@@ -45,6 +45,23 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showScrollUp, setShowScrollUp] = useState(false);
   
+  // Agency Dropdown State
+  const [showAgencyDropdown, setShowAgencyDropdown] = useState(false);
+  
+  // Product Dropdown State
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [showFareRuleSubmenu, setShowFareRuleSubmenu] = useState(false);
+  const [fareRuleSubmenuLocked, setFareRuleSubmenuLocked] = useState(false);
+  
+  // Reservations Dropdown State
+  const [showReservationsDropdown, setShowReservationsDropdown] = useState(false);
+  
+  // Finance Dropdown State
+  const [showFinanceDropdown, setShowFinanceDropdown] = useState(false);
+  
+  // Reports Dropdown State
+  const [showReportsDropdown, setShowReportsDropdown] = useState(false);
+  
   // Helper function to get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
     const today = new Date();
@@ -285,6 +302,19 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
+  // Close fare rule submenu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (fareRuleSubmenuLocked) {
+        setShowFareRuleSubmenu(false);
+        setFareRuleSubmenuLocked(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [fareRuleSubmenuLocked]);
+
   // Scroll up button visibility
   useEffect(() => {
     const handleScroll = () => {
@@ -513,9 +543,9 @@ export default function Dashboard() {
       </header>
 
       {/* Navigation Bar */}
-      <nav className="bg-black shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center space-x-6 py-3 overflow-x-auto">
+      <nav className="bg-black shadow-sm relative z-[99999] overflow-visible">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 overflow-visible">
+          <div className="flex items-center space-x-6 py-3 overflow-x-auto overflow-y-visible">
             <a href="/dashboard" className="flex items-center space-x-2 text-orange-500 hover:text-orange-400 transition-colors whitespace-nowrap">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
@@ -528,42 +558,398 @@ export default function Dashboard() {
               </svg>
               <span className="font-medium">Panel</span>
             </a>
-            <a href="/agency" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-              </svg>
-              <span className="font-medium">Agency</span>
-            </a>
-            <a href="/product" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
-              </svg>
-              <span className="font-medium">Product</span>
-            </a>
-            <a href="/reservations" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
-              </svg>
-              <span className="font-medium">Reservations</span>
-            </a>
-            <a href="/finance" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
-              </svg>
-              <span className="font-medium">Finance</span>
-            </a>
-            <a href="/reports" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
-              </svg>
-              <span className="font-medium">Reports</span>
-            </a>
-            <a href="/administrator" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-              </svg>
-              <span className="font-medium">Administrator</span>
-            </a>
+            
+            {/* Agency Dropdown */}
+            <div 
+              className="relative z-[200]"
+              onMouseEnter={() => setShowAgencyDropdown(true)}
+              onMouseLeave={() => setShowAgencyDropdown(false)}
+            >
+              <button className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <span className="font-medium">Agency</span>
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showAgencyDropdown ? 'rotate-180' : ''}`} 
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                >
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+              
+              {/* Dropdown Menu */}
+              {showAgencyDropdown && (
+                <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
+                  <a 
+                    href="/agency/agencies" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                      </svg>
+                      <span className="font-medium">Agencies</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/agency/sales-representatives" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                      </svg>
+                      <span className="font-medium">Sales Representatives</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/agency/customers" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                      </svg>
+                      <span className="font-medium">Agency Customers</span>
+                    </div>
+                  </a>
+                </div>
+              )}
+            </div>
+            
+            {/* Product Dropdown */}
+            <div 
+              className="relative"
+              onMouseEnter={() => setShowProductDropdown(true)}
+              onMouseLeave={() => setShowProductDropdown(false)}
+            >
+              <a href="#" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
+                </svg>
+                <span className="font-medium">Product</span>
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showProductDropdown ? 'rotate-180' : ''}`} 
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                >
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </a>
+              
+              {/* Dropdown Menu */}
+              {showProductDropdown && (
+                <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
+                  <a 
+                    href="/product/offers" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Offers</span>
+                    </div>
+                  </a>
+                  <div 
+                    className="relative"
+                    onMouseEnter={() => !fareRuleSubmenuLocked && setShowFareRuleSubmenu(true)}
+                    onMouseLeave={() => !fareRuleSubmenuLocked && setShowFareRuleSubmenu(false)}
+                  >
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowFareRuleSubmenu(true);
+                        setFareRuleSubmenuLocked(true);
+                      }}
+                      className="flex items-center justify-between px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                        </svg>
+                        <span className="font-medium">Fare Rule</span>
+                      </div>
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    {showFareRuleSubmenu && (
+                      <div className="absolute left-full top-0 -ml-px w-56 bg-white rounded-lg shadow-lg py-2 border border-gray-200">
+                        <a 
+                          href="/product/fare-rule/flight-ticket" 
+                          className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                            </svg>
+                            <span className="font-medium">Flight Ticket</span>
+                          </div>
+                        </a>
+                        <a 
+                          href="/product/fare-rule/hotel" 
+                          className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                            </svg>
+                            <span className="font-medium">Hotel</span>
+                          </div>
+                        </a>
+                        <a 
+                          href="/product/fare-rule/rent-a-car" 
+                          className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                              <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                            </svg>
+                            <span className="font-medium">Rent A Car</span>
+                          </div>
+                        </a>
+                        <a 
+                          href="/product/fare-rule/transfer" 
+                          className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                            </svg>
+                            <span className="font-medium">Transfer</span>
+                          </div>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Reservations Dropdown */}
+            <div 
+              className="relative z-[200]"
+              onMouseEnter={() => setShowReservationsDropdown(true)}
+              onMouseLeave={() => setShowReservationsDropdown(false)}
+            >
+              <button className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17 10H7v2h10v-2zm2-7h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zm-5-5H7v2h7v-2z"/>
+                </svg>
+                <span className="font-medium">Reservations</span>
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showReservationsDropdown ? 'rotate-180' : ''}`} 
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                >
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+              
+              {/* Dropdown Menu */}
+              {showReservationsDropdown && (
+                <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
+                  <a 
+                    href="/reservations/all" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">All Reservations</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/reservations/flight-ticket" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                      </svg>
+                      <span className="font-medium">Flight Ticket</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/reservations/hotel" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                      </svg>
+                      <span className="font-medium">Hotel</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/reservations/transfer" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Transfer</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/reservations/rent-a-car" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                        <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                      </svg>
+                      <span className="font-medium">Rent A Car</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/reservations/tour" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Tour</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/reservations/visa" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Visa</span>
+                    </div>
+                  </a>
+                </div>
+              )}
+            </div>
+            
+            {/* Finance Dropdown */}
+            <div 
+              className="relative z-[200]"
+              onMouseEnter={() => setShowFinanceDropdown(true)}
+              onMouseLeave={() => setShowFinanceDropdown(false)}
+            >
+              <button className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.91s4.18 1.39 4.18 3.91c-.01 1.83-1.38 2.83-3.12 3.16z"/>
+                </svg>
+                <span className="font-medium">Finance</span>
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showFinanceDropdown ? 'rotate-180' : ''}`} 
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                >
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+              
+              {/* Dropdown Menu */}
+              {showFinanceDropdown && (
+                <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
+                  <a 
+                    href="/finance/agency-accounts" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Agency Accounts</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/finance/receiving-discharge" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Receiving and Discharge</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/finance/virement" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Virement</span>
+                    </div>
+                  </a>
+                </div>
+              )}
+            </div>
+            
+            <div 
+              className="relative z-[200]"
+              onMouseEnter={() => setShowReportsDropdown(true)}
+              onMouseLeave={() => setShowReportsDropdown(false)}
+            >
+              <button className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+                </svg>
+                <span className="font-medium">Reports</span>
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showReportsDropdown ? 'rotate-180' : ''}`} 
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                >
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+              
+              {/* Dropdown Menu */}
+              {showReportsDropdown && (
+                <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
+                  <a href="/reports/flight-ticket/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    </svg>
+                    <span>Flight Ticket Sales</span>
+                  </a>
+                  <a href="/reports/hotel/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4z"/>
+                    </svg>
+                    <span>Hotel Sales</span>
+                  </a>
+                  <a href="/reports/rent-a-car/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+                    </svg>
+                    <span>Rent A Car Sales</span>
+                  </a>
+                  <a href="/reports/tour/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    <span>Tour Sales</span>
+                  </a>
+                  <a href="/reports/transfer/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                    </svg>
+                    <span>Transfer Sales</span>
+                  </a>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </nav>
@@ -1157,7 +1543,7 @@ export default function Dashboard() {
                 <span className="text-blue-500 font-bold">Licensed Agency</span>
               </div>
               <div className="text-center text-sm text-gray-400">
-                © 2025 True Travel. All rights reserved.
+                <p>Copyright © 2025. Powered by <span className="text-yellow-400 font-bold">Y</span></p>
               </div>
             </div>
           </div>
@@ -1179,3 +1565,10 @@ export default function Dashboard() {
     </div>
   );
 }
+
+
+
+
+
+
+

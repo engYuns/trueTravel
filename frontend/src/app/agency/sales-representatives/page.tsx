@@ -1,32 +1,14 @@
-/**
- * True Travel B2B Booking Platform - Financial Panel Page
- * 
- * ICON SYSTEM GUIDELINES:
- * All icons use professional Material Design SVG icons with solid fill style.
- * Icon specifications:
- * - Size: w-5 h-5 (20x20px) for consistency
- * - Fill: currentColor (inherits text color)
- * - ViewBox: 0 0 24 24 (Material Design standard)
- * 
- * For future development, always use SVG icons instead of emoji.
- * Maintain consistent icon style across the platform.
- */
+'use client';
 
-"use client"; 
-
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
-export default function Panel() {
+export default function SalesRepresentativesPage() {
   const router = useRouter();
-  const [showScrollUp, setShowScrollUp] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [fromCurrency, setFromCurrency] = useState("USD");
-  const [toCurrency, setToCurrency] = useState("USD");
+
+  // Time State
   const [currentTime, setCurrentTime] = useState(new Date());
-  
-  // Dropdown States
   const [showAgencyDropdown, setShowAgencyDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [showFareRuleSubmenu, setShowFareRuleSubmenu] = useState(false);
@@ -35,48 +17,10 @@ export default function Panel() {
   const [showFinanceDropdown, setShowFinanceDropdown] = useState(false);
   const [showReportsDropdown, setShowReportsDropdown] = useState(false);
 
-  // Update time every minute
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Close fare rule submenu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (fareRuleSubmenuLocked) {
-        setShowFareRuleSubmenu(false);
-        setFareRuleSubmenuLocked(false);
-      }
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [fareRuleSubmenuLocked]);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      setShowScrollUp(scrollTop > 300);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
+  // Helper functions
   const handleLogout = () => {
-    // Remove authentication cookie
     document.cookie = 'isLoggedIn=false; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
     router.push('/');
-  };
-
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
   };
 
   const formatTime = (date: Date) => {
@@ -94,7 +38,109 @@ export default function Panel() {
     });
   };
 
-  const currencies = ["USD", "EUR", "TRY", "IQD"];
+  // Update time every minute
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Close fare rule submenu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (fareRuleSubmenuLocked) {
+        setShowFareRuleSubmenu(false);
+        setFareRuleSubmenuLocked(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [fareRuleSubmenuLocked]);
+
+  // Search Filters State
+  const [agency, setAgency] = useState('All');
+  const [agencyGroup, setAgencyGroup] = useState('');
+  const [name, setName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [userName, setUserName] = useState('');
+  const [countryCity, setCountryCity] = useState('All');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Table Data (Sample)
+  const [salesReps, setSalesReps] = useState([
+    {
+      id: 1,
+      agency: 'True Travel',
+      gender: 'Mr',
+      name: 'Ahmed',
+      lastName: 'Hasan',
+      title: '',
+      email: 'sales@truetraveliq.com',
+      userName: 'sales@truetraveliq.com',
+      password: '********',
+      phone: '+964 750 328 2768',
+      roles: [
+        'Agency Manager',
+        'Agency Credit Saler',
+        'Agency Saler',
+        'Agency Accounting',
+        'Agency Call Center',
+        'Agency Agent',
+        'Agency XML User'
+      ]
+    },
+    {
+      id: 2,
+      agency: 'True Travel',
+      gender: 'Mr',
+      name: 'younis',
+      lastName: 'pshtiwan',
+      title: 'mr',
+      email: 'r87ej9x3@gmail.com',
+      userName: 'younis',
+      password: '********',
+      phone: '+964 750 324 2018',
+      roles: [
+        'Agency Accounting',
+        'Agency Call Center',
+        'Agency Manager',
+        'Agency Credit Saler',
+        'Agency Saler',
+        'Agency Agent',
+        'Agency XML User'
+      ]
+    }
+  ]);
+
+  const handleSearch = () => {
+    console.log('Searching with filters:', {
+      agency,
+      name,
+      lastName,
+      email,
+      userName,
+      countryCity
+    });
+  };
+
+  const handleNewRep = () => {
+    console.log('Create new sales representative');
+  };
+
+  const handleEdit = (id: number) => {
+    console.log('Edit representative:', id);
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -161,7 +207,7 @@ export default function Panel() {
       </header>
 
       {/* Navigation Bar */}
-      <nav className="bg-black shadow-sm relative z-[100] overflow-visible">
+      <nav className="bg-black shadow-sm relative z-[99999] overflow-visible">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 overflow-visible">
           <div className="flex items-center space-x-6 py-3 overflow-x-auto overflow-y-visible">
             <a href="/dashboard" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
@@ -170,7 +216,7 @@ export default function Panel() {
               </svg>
               <span className="font-medium">Book a Service</span>
             </a>
-            <a href="/panel" className="flex items-center space-x-2 text-orange-500 hover:text-orange-400 transition-colors whitespace-nowrap">
+            <a href="/panel" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
               </svg>
@@ -183,7 +229,7 @@ export default function Panel() {
               onMouseEnter={() => setShowAgencyDropdown(true)}
               onMouseLeave={() => setShowAgencyDropdown(false)}
             >
-              <button className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+              <button className="flex items-center space-x-2 text-orange-500 hover:text-orange-400 transition-colors whitespace-nowrap">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
@@ -347,92 +393,172 @@ export default function Panel() {
                 </div>
               )}
             </div>
+            
+            {/* Reservations Dropdown */}
             <div 
               className="relative"
               onMouseEnter={() => setShowReservationsDropdown(true)}
               onMouseLeave={() => setShowReservationsDropdown(false)}
             >
-              <button className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+              <a href="#" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
                 </svg>
                 <span className="font-medium">Reservations</span>
-                <svg className={`w-4 h-4 transition-transform ${showReservationsDropdown ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showReservationsDropdown ? 'rotate-180' : ''}`} 
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                >
                   <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
-              </button>
+              </a>
+              
+              {/* Dropdown Menu */}
               {showReservationsDropdown && (
                 <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
-                  <a href="/reservations/flight-ticket" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
-                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                    </svg>
-                    <span>Flight Ticket</span>
+                  <a 
+                    href="/reservations/all" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">All Reservations</span>
+                    </div>
                   </a>
-                  <a href="/reservations/hotel" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
-                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4z"/>
-                    </svg>
-                    <span>Hotel</span>
+                  <a 
+                    href="/reservations/flight-ticket" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                      </svg>
+                      <span className="font-medium">Flight Ticket</span>
+                    </div>
                   </a>
-                  <a href="/reservations/rent-a-car" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
-                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
-                    </svg>
-                    <span>Rent A Car</span>
+                  <a 
+                    href="/reservations/hotel" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                      </svg>
+                      <span className="font-medium">Hotel</span>
+                    </div>
                   </a>
-                  <a href="/reservations/tour" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
-                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z"/>
-                    </svg>
-                    <span>Tour</span>
+                  <a 
+                    href="/reservations/transfer" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Transfer</span>
+                    </div>
                   </a>
-                  <a href="/reservations/visa" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
-                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
-                    </svg>
-                    <span>Visa</span>
+                  <a 
+                    href="/reservations/rent-a-car" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                        <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                      </svg>
+                      <span className="font-medium">Rent A Car</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/reservations/tour" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Tour</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/reservations/visa" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Visa</span>
+                    </div>
                   </a>
                 </div>
               )}
             </div>
+            
+            {/* Finance Dropdown */}
             <div 
               className="relative"
               onMouseEnter={() => setShowFinanceDropdown(true)}
               onMouseLeave={() => setShowFinanceDropdown(false)}
             >
-              <button className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+              <a href="#" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
                 </svg>
                 <span className="font-medium">Finance</span>
-                <svg className={`w-4 h-4 transition-transform ${showFinanceDropdown ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showFinanceDropdown ? 'rotate-180' : ''}`} 
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                >
                   <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
-              </button>
+              </a>
+              
+              {/* Dropdown Menu */}
               {showFinanceDropdown && (
                 <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
-                  <a href="/finance/agency-accounts" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
-                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
-                    </svg>
-                    <span>Agency Accounts</span>
+                  <a 
+                    href="/finance/agency-accounts" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Agency Accounts</span>
+                    </div>
                   </a>
-                  <a href="/finance/receiving-discharge" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
-                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M19 14V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zm-2 0H3V6h14v8zm-7-7c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm13 0v11c0 1.1-.9 2-2 2H4v-2h17V7h2z"/>
-                    </svg>
-                    <span>Receiving and Discharge</span>
+                  <a 
+                    href="/finance/receiving-discharge" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Receiving and Discharge</span>
+                    </div>
                   </a>
-                  <a href="/finance/virement" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
-                    <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 1L8 5h3v9H8l4 4 4-4h-3V5h3l-4-4z"/>
-                    </svg>
-                    <span>Virement</span>
+                  <a 
+                    href="/finance/virement" 
+                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Virement</span>
+                    </div>
                   </a>
                 </div>
               )}
             </div>
+            
             <div 
               className="relative"
               onMouseEnter={() => setShowReportsDropdown(true)}
@@ -443,10 +569,16 @@ export default function Panel() {
                   <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
                 </svg>
                 <span className="font-medium">Reports</span>
-                <svg className={`w-4 h-4 transition-transform ${showReportsDropdown ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showReportsDropdown ? 'rotate-180' : ''}`} 
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                >
                   <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
               </button>
+              
+              {/* Dropdown Menu */}
               {showReportsDropdown && (
                 <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
                   <a href="/reports/flight-ticket/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
@@ -469,13 +601,13 @@ export default function Panel() {
                   </a>
                   <a href="/reports/tour/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
                     <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z"/>
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                     </svg>
                     <span>Tour Sales</span>
                   </a>
                   <a href="/reports/transfer/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
                     <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+                      <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
                     </svg>
                     <span>Transfer Sales</span>
                   </a>
@@ -486,310 +618,219 @@ export default function Panel() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {/* Company Information Card */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <h3 className="text-sm font-semibold text-orange-500 mb-2">Company Name</h3>
-              <p className="text-gray-800">True Travel Tourism Services LLC</p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {/* Search Criteria */}
+        <div className="bg-white rounded-lg shadow-md mb-6">
+          <div className="bg-orange-500 text-white px-6 py-3 rounded-t-lg">
+            <h2 className="text-lg font-semibold">Searching Criterias</h2>
+          </div>
+          
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              {/* Agency */}
+              <div>
+                <label className="block text-sm font-medium text-orange-500 mb-2">Agency</label>
+                <select
+                  value={agency}
+                  onChange={(e) => setAgency(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="All">All</option>
+                  <option value="True Travel">True Travel</option>
+                </select>
+              </div>
+
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-orange-500 mb-2">Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {/* Last Name */}
+              <div>
+                <label className="block text-sm font-medium text-orange-500 mb-2">Last Name</label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {/* E-mail */}
+              <div>
+                <label className="block text-sm font-medium text-orange-500 mb-2">E-mail</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {/* User Name */}
+              <div>
+                <label className="block text-sm font-medium text-orange-500 mb-2">User Name</label>
+                <input
+                  type="text"
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {/* Country City */}
+              <div>
+                <label className="block text-sm font-medium text-orange-500 mb-2">Country City</label>
+                <select
+                  value={countryCity}
+                  onChange={(e) => setCountryCity(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="All">All</option>
+                  <option value="Iraq-Erbil">Iraq - Erbil</option>
+                  <option value="Iraq-Baghdad">Iraq - Baghdad</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-orange-500 mb-2">Tax Office</h3>
-              <p className="text-gray-800">Erbil</p>
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-orange-500 mb-2">Tax Number</h3>
-              <p className="text-gray-800">1791169304</p>
+
+            {/* Search Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={handleSearch}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+                <span>Search</span>
+              </button>
             </div>
           </div>
+        </div>
 
-          {/* Amount and Currency Section */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-            <div>
-              <label className="block text-sm font-semibold text-orange-500 mb-2">Amount</label>
+        {/* New Button and Pagination Info */}
+        <div className="flex flex-wrap items-center justify-between mb-4 gap-4">
+          <button
+            onClick={handleNewRep}
+            className="bg-teal-500 hover:bg-teal-600 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            <span>New</span>
+          </button>
+
+          <div className="flex items-center space-x-4">
+            <span className="text-orange-500 font-medium">Total Recording Number: {salesReps.length}</span>
+            <div className="flex items-center space-x-2">
+              <span className="text-gray-700 font-medium">Pagination</span>
               <input
                 type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter amount"
+                value={currentPage}
+                onChange={(e) => setCurrentPage(Number(e.target.value))}
+                className="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-orange-500 mb-2">Currency</label>
               <select
-                value={fromCurrency}
-                onChange={(e) => setFromCurrency(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={itemsPerPage}
+                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                className="border border-gray-300 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
-                {currencies.map((currency) => (
-                  <option key={currency} value={currency}>{currency}</option>
-                ))}
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-orange-500 mb-2">Currency</label>
-              <select
-                value={toCurrency}
-                onChange={(e) => setToCurrency(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                {currencies.map((currency) => (
-                  <option key={currency} value={currency}>{currency}</option>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-600 text-white">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">Agency</th>
+                  <th className="px-4 py-3 text-left font-medium">Gender</th>
+                  <th className="px-4 py-3 text-left font-medium">Name</th>
+                  <th className="px-4 py-3 text-left font-medium">Last Name</th>
+                  <th className="px-4 py-3 text-left font-medium">Title</th>
+                  <th className="px-4 py-3 text-left font-medium">E-mail</th>
+                  <th className="px-4 py-3 text-left font-medium">User Name</th>
+                  <th className="px-4 py-3 text-left font-medium">Password</th>
+                  <th className="px-4 py-3 text-left font-medium">Phone</th>
+                  <th className="px-4 py-3 text-left font-medium">Role</th>
+                  <th className="px-4 py-3 text-left font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {salesReps.map((rep) => (
+                  <tr key={rep.id} className="border-b border-gray-200 hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-900">{rep.agency}</td>
+                    <td className="px-4 py-3 text-gray-900">{rep.gender}</td>
+                    <td className="px-4 py-3 text-gray-900">{rep.name}</td>
+                    <td className="px-4 py-3 text-gray-900">{rep.lastName}</td>
+                    <td className="px-4 py-3 text-gray-900">{rep.title}</td>
+                    <td className="px-4 py-3 text-gray-900">{rep.email}</td>
+                    <td className="px-4 py-3 text-gray-900">{rep.userName}</td>
+                    <td className="px-4 py-3 text-gray-900">{rep.password}</td>
+                    <td className="px-4 py-3 text-gray-900">{rep.phone}</td>
+                    <td className="px-4 py-3">
+                      <div className="text-sm text-gray-900 space-y-1">
+                        {rep.roles.map((role, index) => (
+                          <div key={index}>{role}</div>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => handleEdit(rep.id)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded transition-colors"
+                        title="Edit"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
                 ))}
-              </select>
-            </div>
-            <div className="flex items-end space-x-2">
-              <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-              </button>
-              <button className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-bold">
-                $
-              </button>
-            </div>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Horizontal Scroll Indicator */}
+          <div className="bg-gray-200 h-2">
+            <div className="bg-gray-400 h-2 w-full"></div>
           </div>
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {/* Turnover Card */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-600">Turnover</h3>
-              <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm font-medium">0</span>
-            </div>
-            <div className="text-3xl font-bold text-green-600 mb-2">0.00</div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-green-500 h-2 rounded-full" style={{ width: '0%' }}></div>
-            </div>
-          </div>
-
-          {/* Sale Count Card */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-600">Sale Count</h3>
-              <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm font-medium">0</span>
-            </div>
-            <div className="text-3xl font-bold text-green-600 mb-2">0</div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-green-500 h-2 rounded-full" style={{ width: '0%' }}></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Balance Info and Liable Person */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Balance Information */}
-          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">BALANCE INFO</h3>
-            
-            {/* Balance Circles */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {/* Defined Balance */}
-              <div className="text-center">
-                <div className="relative w-20 h-20 mx-auto mb-3">
-                  <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" stroke="#e5e7eb" strokeWidth="8" fill="none" />
-                    <circle cx="50" cy="50" r="40" stroke="#3b82f6" strokeWidth="8" fill="none" 
-                            strokeDasharray="251.2" strokeDashoffset="0" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold text-blue-600">100%</span>
-                  </div>
-                </div>
-                <h4 className="font-semibold text-gray-700 mb-1 text-sm">Defined Balance</h4>
-                <p className="text-sm font-bold">3000.00 USD</p>
-              </div>
-
-              {/* Total Balance */}
-              <div className="text-center">
-                <div className="relative w-20 h-20 mx-auto mb-3">
-                  <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" stroke="#e5e7eb" strokeWidth="8" fill="none" />
-                    <circle cx="50" cy="50" r="40" stroke="#f59e0b" strokeWidth="8" fill="none" 
-                            strokeDasharray="251.2" strokeDashoffset="0" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold text-orange-600">100%</span>
-                  </div>
-                </div>
-                <h4 className="font-semibold text-gray-700 mb-1 text-sm">Total Balance</h4>
-                <p className="text-sm font-bold">3691.66 USD</p>
-              </div>
-
-              {/* Used Balance */}
-              <div className="text-center">
-                <div className="relative w-20 h-20 mx-auto mb-3">
-                  <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" stroke="#e5e7eb" strokeWidth="8" fill="none" />
-                    <circle cx="50" cy="50" r="40" stroke="#e5e7eb" strokeWidth="8" fill="none" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold text-red-600">0%</span>
-                  </div>
-                </div>
-                <h4 className="font-semibold text-gray-700 mb-1 text-sm">Used Balance</h4>
-                <p className="text-sm font-bold">0.00 USD</p>
-              </div>
-
-              {/* Available Balance */}
-              <div className="text-center">
-                <div className="relative w-20 h-20 mx-auto mb-3">
-                  <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" stroke="#e5e7eb" strokeWidth="8" fill="none" />
-                    <circle cx="50" cy="50" r="40" stroke="#10b981" strokeWidth="8" fill="none" 
-                            strokeDasharray="251.2" strokeDashoffset="0" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold text-green-600">100%</span>
-                  </div>
-                </div>
-                <h4 className="font-semibold text-gray-700 mb-1 text-sm">Available Balance</h4>
-                <p className="text-sm font-bold">3691.66 USD</p>
-              </div>
-            </div>
-
-            {/* Commission */}
-            <div>
-              <h4 className="font-semibold text-gray-700 mb-3">Commission</h4>
-              <div className="flex items-center space-x-4">
-                <div className="relative w-16 h-16">
-                  <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" stroke="#e5e7eb" strokeWidth="8" fill="none" />
-                    <circle cx="50" cy="50" r="40" stroke="#06b6d4" strokeWidth="8" fill="none" 
-                            strokeDasharray="251.2" strokeDashoffset="0" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xs font-bold text-cyan-600">100%</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold text-cyan-600">5.01</div>
-                  <div className="text-sm text-gray-600">USD</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Liable Person */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">LIABLE PERSON</h3>
-            <div className="text-center">
-              <div className="w-24 h-24 bg-gray-800 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                </svg>
-              </div>
-              <h4 className="text-lg font-semibold text-gray-600 mb-1">Mrs. Ceren Çipa</h4>
-              <p className="text-sm text-blue-500 mb-3">Sales & Marketing Director</p>
-              <div className="space-y-2 text-sm text-gray-600">
-                <div className="flex items-center justify-center space-x-2">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-                  </svg>
-                  <span>ccipa@bookingagora.com</span>
-                </div>
-                <div className="flex items-center justify-center space-x-2">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-                  </svg>
-                  <span>+90 533 705 5209</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* System Bank Information */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-bold text-gray-800 mb-6">SYSTEM BANK INFORMATION</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-red-600 font-bold">Ziraat Bankası</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-orange-500 font-bold">VakıfBank</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-blue-600 font-bold">HALKBANK</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-blue-800 font-bold">DenizBank</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-green-600 font-bold">Garanti</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-red-600 font-bold">AKBANK</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-blue-500 font-bold">YapıKredi</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-blue-700 font-bold">Türkiye İş Bankası</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-yellow-600 font-bold">KuveytTürk</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-orange-600 font-bold">alBaraka</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-green-600 font-bold">TEB</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <div className="text-center">
-                <div className="text-red-500 font-bold">Türkiye Finans</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
+      </div>
 
       {/* Footer */}
-      <footer className="bg-black text-white py-6 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center">
-            <p className="text-sm">Copyright © 2025. Powered by <span className="text-yellow-500 font-bold">Y</span></p>
-          </div>
+      <footer className="bg-black text-white py-4 mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
+          <p className="text-sm">
+            Copyright © 2025. Powered by <span className="text-yellow-400 font-bold">Y</span>
+          </p>
         </div>
       </footer>
 
       {/* Scroll Up Button */}
-      {showScrollUp && (
-        <button
-          onClick={scrollToTop}
-          className="fixed bottom-6 right-6 z-50 bg-black hover:bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg transition-all duration-300"
-          aria-label="Scroll to top"
-        >
-          <span className="text-sm font-bold">↑ Scroll Up</span>
-        </button>
-      )}
+      <button
+        onClick={scrollToTop}
+        className="fixed bottom-6 right-6 bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg transition-colors flex items-center space-x-2"
+      >
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+        </svg>
+        <span>Scroll Up</span>
+      </button>
     </div>
   );
 }

@@ -557,6 +557,13 @@ export default function Home() {
               </div>
             </div>
           </div>
+          
+          {/* Copyright */}
+          <div className="border-t border-gray-800 mt-8 pt-6">
+            <p className="text-gray-400 text-sm text-center">
+              Copyright © 2025. Powered by <span className="text-yellow-400 font-bold">Y</span>
+            </p>
+          </div>
         </div>
       </footer>
 
@@ -575,3 +582,5 @@ export default function Home() {
     </div>
   );
 }
+
+
