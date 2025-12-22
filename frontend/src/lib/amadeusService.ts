@@ -122,6 +122,52 @@ class AmadeusService {
   }
 
   /**
+   * Lookup airline names by IATA carrier codes.
+   * Used as a fallback when flight-offers dictionaries.carriers is incomplete.
+   */
+  async lookupAirlines(
+    carrierCodes: string[],
+    config: AmadeusConfig
+  ): Promise<Record<string, string>> {
+    const uniqueCodes = Array.from(
+      new Set((carrierCodes || []).map((c) => String(c || '').trim().toUpperCase()).filter(Boolean))
+    );
+    if (uniqueCodes.length === 0) return {};
+
+    const token = await this.getAccessToken(config);
+    const queryParams = new URLSearchParams({
+      airlineCodes: uniqueCodes.join(','),
+    });
+
+    const response = await fetch(
+      `${config.apiEndpoint}/v1/reference-data/airlines?${queryParams}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      // Don't fail the whole search if this lookup fails.
+      return {};
+    }
+
+    const data = await response.json().catch(() => null);
+    const items: any[] = Array.isArray(data?.data) ? data.data : [];
+
+    const result: Record<string, string> = {};
+    for (const item of items) {
+      const code = String(item?.iataCode || item?.icaoCode || '').trim().toUpperCase();
+      const label = String(item?.businessName || item?.commonName || item?.name || '').trim();
+      if (code && label) result[code] = label;
+    }
+
+    return result;
+  }
+
+  /**
    * Search for airports and cities by keyword
    */
   async searchLocations(
@@ -192,7 +238,11 @@ export const amadeusService = new AmadeusService();
 /**
  * Transform Amadeus flight offer to our UI format
  */
-export function transformFlightOffer(offer: any, index: number) {
+export function transformFlightOffer(
+  offer: any,
+  index: number,
+  carriers?: Record<string, string>
+) {
   const itinerary = offer.itineraries[0];
   const segment = itinerary.segments[0];
   const lastSegment = itinerary.segments[itinerary.segments.length - 1];
@@ -209,10 +259,16 @@ export function transformFlightOffer(offer: any, index: number) {
   // Get airline info
   const carrierCode = segment.carrierCode;
   const flightNumber = `${segment.carrierCode} ${segment.number}`;
-  
-  // Get airline logo URL from multiple CDNs (Amadeus doesn't provide logos)
-  // Using Airlabs.co as it has better coverage
-  const logoUrl = `https://images.kiwi.com/airlines/64/${carrierCode}.png`;
+
+  // Airline logo URL (avoid watermarks)
+  // Primary: Google Flights
+  // Some carriers need overrides to avoid bad/boxed logos.
+  // UI components will fallback to Kiwi on error.
+  const carrier = String(carrierCode || '').toUpperCase();
+  const logoUrl =
+    carrier === 'W2'
+      ? 'https://flexflight.dk/wp-content/uploads/2024/12/b2354b66-2516-4cbe-99d2-00c4924c590c.png'
+      : `https://www.gstatic.com/flights/airline_logos/70px/${carrier}.png`;
 
   // Format times
   const departureTime = new Date(segment.departure.at).toLocaleTimeString('en-GB', {
@@ -239,7 +295,7 @@ export function transformFlightOffer(offer: any, index: number) {
   return {
     id: index + 1,
     amadeus_id: offer.id,
-    airline: getAirlineName(carrierCode),
+    airline: carriers?.[carrierCode] || carrierCode,
     logo: logoUrl,
     carrierCode: carrierCode, // Keep carrier code for matching/comparison
     flightNumber: flightNumber,
@@ -261,31 +317,6 @@ export function transformFlightOffer(offer: any, index: number) {
     availability: `${availableSeats} seat${availableSeats > 1 ? 's' : ''} left`,
     originalOffer: offer, // Store for booking
   };
-}
-
-/**
- * Get airline name from carrier code
- */
-function getAirlineName(carrierCode: string): string {
-  const airlines: Record<string, string> = {
-    TK: 'Turkish Airlines',
-    IA: 'Iraqi Airways',
-    PC: 'Pegasus Airlines',
-    EK: 'Emirates',
-    QR: 'Qatar Airways',
-    FZ: 'flydubai',
-    WY: 'Oman Air',
-    MS: 'EgyptAir',
-    RJ: 'Royal Jordanian',
-    KU: 'Kuwait Airways',
-    LH: 'Lufthansa',
-    BA: 'British Airways',
-    AF: 'Air France',
-    KL: 'KLM',
-    // Add more airlines as needed
-  };
-
-  return airlines[carrierCode] || carrierCode;
 }
 
 /**

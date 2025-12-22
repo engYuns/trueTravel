@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import ScrollUpButton from "@/components/ScrollUpButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "True Travel - B2B Booking Platform",
+  title: "True Travel",
   description: "B2B booking platform for True Travel company based in Erbil",
 };
 
@@ -30,6 +31,7 @@ export default function RootLayout({
       >
         <LanguageProvider>
           {children}
+          <ScrollUpButton />
         </LanguageProvider>
       </body>
     </html>

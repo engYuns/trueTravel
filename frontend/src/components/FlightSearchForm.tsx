@@ -15,6 +15,7 @@ interface FlightSearchFormProps {
     flightClass?: string;
     tripType?: string;
     markup?: string;
+    markupType?: 'fixed' | 'percentage';
     isDirect?: boolean;
   };
   onSearchComplete?: () => void;
@@ -45,7 +46,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
   const [children, setChildren] = useState(initialData?.children || 0);
   const [infants, setInfants] = useState(initialData?.infants || 0);
   const [markup, setMarkup] = useState(initialData?.markup || '0');
-  const [markupType, setMarkupType] = useState('fixed');
+  const [markupType, setMarkupType] = useState<'fixed' | 'percentage'>(initialData?.markupType || 'fixed');
   const [isDirect, setIsDirect] = useState(initialData?.isDirect || false);
   
   // Location Autocomplete State
@@ -119,6 +120,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
         flightClass,
         tripType,
         markup,
+        markupType,
         isDirect: isDirect.toString()
       });
 
@@ -139,10 +141,10 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
           adults,
           children,
           infants,
-          travelClass: flightClass.toUpperCase(),
+          travelClass: flightClass,
           nonStop: isDirect,
           currencyCode: 'USD',
-          max: 50
+          maxResults: 50
         }),
       });
 
@@ -162,6 +164,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
           flightClass,
           tripType,
           markup,
+          markupType,
           isDirect
         }));
 
@@ -234,16 +237,17 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
   }, [toLocation]);
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6 lg:p-8">
+    <div className="bg-white rounded-xl shadow-sm p-6 lg:p-8">
       {/* Trip Type Selector */}
-      <div className="flex flex-wrap space-x-2 lg:space-x-4 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6">
         {["Oneway", "Roundtrip", "Multipoint"].map((type) => (
           <button
             key={type}
             onClick={() => setTripType(type)}
-            className={`px-3 lg:px-4 py-2 rounded-lg font-medium transition-colors text-sm lg:text-base ${
+            type="button"
+            className={`h-12 px-6 rounded-xl font-medium transition-colors text-sm lg:text-base ${
               tripType === type
-                ? 'bg-blue-600 text-white'
+                ? 'bg-[#155dfc] text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
@@ -272,15 +276,15 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
               }}
               onBlur={() => setTimeout(() => setShowFromDropdown(false), 200)}
               placeholder="Type city or airport (e.g., Erbil, IST)"
-              className="w-full px-4 py-3 pr-20 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
+              className="w-full h-12 px-4 pr-14 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
             />
-            <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-orange-500">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#155dfc]" aria-hidden="true">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
               </svg>
-            </button>
+            </span>
             {isLoadingFrom && (
-              <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+              <div className="absolute right-10 top-1/2 -translate-y-1/2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               </div>
             )}
@@ -298,7 +302,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                     className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
                   >
                     <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-[#155dfc] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                       </svg>
                       <div className="flex-1">
@@ -314,10 +318,12 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
         </div>
 
         {/* Swap Button */}
-        <div className="flex items-end">
+        <div className="flex">
           <button
             onClick={swapLocations}
-            className="w-full mb-3 p-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center"
+            type="button"
+            aria-label="Swap locations"
+            className="w-full h-12 bg-[#155dfc] text-white rounded-lg hover:bg-[#155dfc]/90 transition-colors flex items-center justify-center"
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/>
@@ -343,15 +349,15 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
               }}
               onBlur={() => setTimeout(() => setShowToDropdown(false), 200)}
               placeholder="Type city or airport (e.g., Istanbul, DXB)"
-              className="w-full px-4 py-3 pr-20 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
+              className="w-full h-12 px-4 pr-14 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
             />
-            <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-orange-500">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#155dfc]" aria-hidden="true">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
               </svg>
-            </button>
+            </span>
             {isLoadingTo && (
-              <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+              <div className="absolute right-10 top-1/2 -translate-y-1/2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               </div>
             )}
@@ -369,7 +375,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                     className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
                   >
                     <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-[#155dfc] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                       </svg>
                       <div className="flex-1">
@@ -387,14 +393,21 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
         {/* Departure Date */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Departure Date</label>
-          <input
-            type="date"
-            value={departureDate}
-            onChange={(e) => setDepartureDate(e.target.value)}
-            min={new Date().toISOString().split('T')[0]}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
-            required
-          />
+          <div className="relative">
+            <input
+              type="date"
+              value={departureDate}
+              onChange={(e) => setDepartureDate(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="w-full h-12 px-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900"
+              required
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" aria-hidden="true">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z" />
+              </svg>
+            </span>
+          </div>
         </div>
 
         {/* Return Date */}
@@ -402,14 +415,21 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Return Date {tripType === "Oneway" && <span className="text-gray-400">(Optional)</span>}
           </label>
-          <input
-            type="date"
-            value={returnDate}
-            onChange={(e) => setReturnDate(e.target.value)}
-            min={departureDate || new Date().toISOString().split('T')[0]}
-            disabled={tripType === "Oneway"}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
-          />
+          <div className="relative">
+            <input
+              type="date"
+              value={returnDate}
+              onChange={(e) => setReturnDate(e.target.value)}
+              min={departureDate || new Date().toISOString().split('T')[0]}
+              disabled={tripType === "Oneway"}
+              className="w-full h-12 px-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" aria-hidden="true">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z" />
+              </svg>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -420,7 +440,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
           <select
             value={flightClass}
             onChange={(e) => setFlightClass(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
+            className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900"
           >
             <option>Economy</option>
             <option>Business</option>
@@ -433,7 +453,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
           <button
             type="button"
             onClick={() => setShowPassengerDropdown(!showPassengerDropdown)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-left bg-white flex items-center justify-between text-gray-900"
+            className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-left bg-white flex items-center justify-between text-gray-900"
           >
             <span>{getPassengerText()}</span>
             <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
@@ -454,7 +474,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                   <button
                     type="button"
                     onClick={() => setAdults(Math.max(1, adults - 1))}
-                    className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
+                    className="w-8 h-8 rounded-full border-2 border-[#155dfc] text-[#155dfc] hover:bg-[#155dfc]/10 font-bold"
                   >
                     −
                   </button>
@@ -462,7 +482,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                   <button
                     type="button"
                     onClick={() => setAdults(Math.min(9, adults + 1))}
-                    className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
+                    className="w-8 h-8 rounded-full border-2 border-[#155dfc] text-[#155dfc] hover:bg-[#155dfc]/10 font-bold"
                   >
                     +
                   </button>
@@ -479,7 +499,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                   <button
                     type="button"
                     onClick={() => setChildren(Math.max(0, children - 1))}
-                    className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
+                    className="w-8 h-8 rounded-full border-2 border-[#155dfc] text-[#155dfc] hover:bg-[#155dfc]/10 font-bold"
                   >
                     −
                   </button>
@@ -487,7 +507,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                   <button
                     type="button"
                     onClick={() => setChildren(Math.min(9, children + 1))}
-                    className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
+                    className="w-8 h-8 rounded-full border-2 border-[#155dfc] text-[#155dfc] hover:bg-[#155dfc]/10 font-bold"
                   >
                     +
                   </button>
@@ -504,7 +524,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                   <button
                     type="button"
                     onClick={() => setInfants(Math.max(0, infants - 1))}
-                    className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
+                    className="w-8 h-8 rounded-full border-2 border-[#155dfc] text-[#155dfc] hover:bg-[#155dfc]/10 font-bold"
                   >
                     −
                   </button>
@@ -512,7 +532,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                   <button
                     type="button"
                     onClick={() => setInfants(Math.min(adults, infants + 1))}
-                    className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
+                    className="w-8 h-8 rounded-full border-2 border-[#155dfc] text-[#155dfc] hover:bg-[#155dfc]/10 font-bold"
                   >
                     +
                   </button>
@@ -526,7 +546,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
               <button
                 type="button"
                 onClick={() => setShowPassengerDropdown(false)}
-                className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 font-medium text-sm"
+                className="w-full bg-[#155dfc] text-white py-2 rounded-lg hover:bg-[#155dfc]/90 font-medium text-sm"
               >
                 Done
               </button>
@@ -545,12 +565,12 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
               placeholder="0"
               min="0"
               step="0.01"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
+              className="flex-1 h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
             />
             <select
               value={markupType}
               onChange={(e) => setMarkupType(e.target.value)}
-              className="px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
+              className="h-12 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900"
             >
               <option value="fixed">$</option>
               <option value="percentage">%</option>
@@ -562,7 +582,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
         <button
           onClick={searchFlights}
           disabled={isSearching}
-          className="bg-orange-500 text-white py-3 px-6 rounded-lg hover:bg-orange-600 transition-colors font-medium flex items-center justify-center space-x-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className="h-12 bg-[#155dfc] text-white px-6 rounded-lg hover:bg-[#155dfc]/90 transition-colors font-medium flex items-center justify-center space-x-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
           {isSearching ? (
             <>
@@ -590,7 +610,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
           id="directFlights"
           checked={isDirect}
           onChange={(e) => setIsDirect(e.target.checked)}
-          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+          className="w-4 h-4 text-[#155dfc] bg-gray-100 border-gray-300 rounded focus:ring-[#155dfc]"
         />
         <label htmlFor="directFlights" className="ml-2 text-sm font-medium text-gray-700">
           Direct flights only

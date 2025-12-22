@@ -5,9 +5,25 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import HeaderUserMenu from '@/components/HeaderUserMenu';
 
-export default function AgencyCustomersPage() {
+export default function TransferFeeRulesPage() {
   const router = useRouter();
-
+  
+  // Form State
+  const [name, setName] = useState('');
+  const [salesChannel, setSalesChannel] = useState('');
+  const [provider, setProvider] = useState('All');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sort, setSort] = useState('Reservation Date');
+  const [agencyGroup, setAgencyGroup] = useState('');
+  const [subCompanies, setSubCompanies] = useState('');
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedRows, setSelectedRows] = useState<number[]>([]);
+  
+  // Navigation Dropdowns State
   const [showAgencyDropdown, setShowAgencyDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [showFareRuleSubmenu, setShowFareRuleSubmenu] = useState(false);
@@ -15,7 +31,11 @@ export default function AgencyCustomersPage() {
   const [showReservationsDropdown, setShowReservationsDropdown] = useState(false);
   const [showFinanceDropdown, setShowFinanceDropdown] = useState(false);
   const [showReportsDropdown, setShowReportsDropdown] = useState(false);
-
+  
+  // Mock data - replace with actual API call
+  const [transferRules, setTransferRules] = useState<any[]>([]);
+  const totalRecords = transferRules.length;
+  
   // Helper functions
   const handleLogout = () => {
     document.cookie = 'isLoggedIn=false; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
@@ -35,190 +55,52 @@ export default function AgencyCustomersPage() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [fareRuleSubmenuLocked]);
 
-  // Search Filters State
-  const [agency, setAgency] = useState('');
-  const [agencyGroup, setAgencyGroup] = useState('');
-  const [status, setStatus] = useState('All');
-  const [name, setName] = useState('');
-  const [lastName, setLastName] = useState('');
-
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  // Table Data (Sample)
-  const [customers, setCustomers] = useState([
-    {
-      id: 1,
-      agency: 'True Travel',
-      type: 'Adult',
-      gender: 'Mr',
-      name: 'AHMAD ALI',
-      birthDate: '',
-      idNumber: '',
-      passportNumber: '',
-      status: 'Active',
-      selected: false
-    },
-    {
-      id: 2,
-      agency: 'True Travel',
-      type: 'Adult',
-      gender: 'Mr',
-      name: 'AHMED BAQI',
-      birthDate: '01.01.1991',
-      idNumber: '',
-      passportNumber: '',
-      status: 'Active',
-      selected: false
-    },
-    {
-      id: 3,
-      agency: 'True Travel',
-      type: 'Adult',
-      gender: 'Mrs',
-      name: 'ALMAS ALI',
-      birthDate: '01.01.1990',
-      idNumber: '',
-      passportNumber: 'B19618086',
-      status: 'Active',
-      selected: false
-    },
-    {
-      id: 4,
-      agency: 'True Travel',
-      type: 'Adult',
-      gender: 'Mr',
-      name: 'ANIA ALI',
-      birthDate: '10.08.2020',
-      idNumber: '',
-      passportNumber: 'A19618109',
-      status: 'Active',
-      selected: false
-    },
-    {
-      id: 5,
-      agency: 'True Travel',
-      type: 'Adult',
-      gender: 'Mr',
-      name: 'AYMAN ALI',
-      birthDate: '20.05.2015',
-      idNumber: '',
-      passportNumber: 'B19623880',
-      status: 'Active',
-      selected: false
-    },
-    {
-      id: 6,
-      agency: 'True Travel',
-      type: 'Adult',
-      gender: 'Mrs',
-      name: 'CHIMAN ZENWAY',
-      birthDate: '',
-      idNumber: '',
-      passportNumber: '',
-      status: 'Active',
-      selected: false
-    },
-    {
-      id: 7,
-      agency: 'True Travel',
-      type: 'Adult',
-      gender: 'Mr',
-      name: 'DHEYAB DHEYAB',
-      birthDate: '31.10.1976',
-      idNumber: '',
-      passportNumber: '',
-      status: 'Active',
-      selected: false
-    },
-    {
-      id: 8,
-      agency: 'True Travel',
-      type: 'Adult',
-      gender: 'Mr',
-      name: 'EMAM NOORI',
-      birthDate: '01.01.1990',
-      idNumber: '',
-      passportNumber: 'B19618031',
-      status: 'Active',
-      selected: false
-    },
-    {
-      id: 9,
-      agency: 'True Travel',
-      type: 'Adult',
-      gender: 'Mr',
-      name: 'EVAR TAREQ',
-      birthDate: '03.08.2015',
-      idNumber: '',
-      passportNumber: '',
-      status: 'Active',
-      selected: false
-    },
-    {
-      id: 10,
-      agency: 'True Travel',
-      type: 'Adult',
-      gender: 'Mr',
-      name: 'GHEYATH AL ZEEBAREE',
-      birthDate: '01.07.1981',
-      idNumber: '',
-      passportNumber: '',
-      status: 'Active',
-      selected: false
-    }
-  ]);
-
   const handleSearch = () => {
-    console.log('Searching with filters:', {
-      agency,
-      status,
+    console.log('Searching with criteria:', {
       name,
-      lastName
+      salesChannel,
+      provider,
+      dateFrom,
+      dateTo,
+      sort,
+      agencyGroup,
+      subCompanies
     });
-  };
-
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const checked = e.target.checked;
-    setCustomers(customers.map(c => ({ ...c, selected: checked })));
-  };
-
-  const handleSelectCustomer = (id: number) => {
-    setCustomers(customers.map(c => 
-      c.id === id ? { ...c, selected: !c.selected } : c
-    ));
+    // API call would go here
   };
 
   const handleNew = () => {
-    console.log('New customer clicked');
-  };
-
-  const handleExportExcel = () => {
-    console.log('Export to Excel clicked');
-  };
-
-  const handleImportExcel = () => {
-    console.log('Import Excel clicked');
+    // Navigate to create new transfer fee rule page
+    console.log('Create new transfer fee rule');
   };
 
   const handleDelete = () => {
-    const selectedIds = customers.filter(c => c.selected).map(c => c.id);
-    if (selectedIds.length > 0) {
-      console.log('Delete customers:', selectedIds);
-      setCustomers(customers.filter(c => !c.selected));
+    if (selectedRows.length === 0) {
+      alert('Please select at least one row to delete');
+      return;
+    }
+    if (confirm(`Are you sure you want to delete ${selectedRows.length} record(s)?`)) {
+      // API call to delete selected rows
+      console.log('Deleting rows:', selectedRows);
+      setSelectedRows([]);
     }
   };
 
-  const handleEdit = (id: number) => {
-    console.log('Edit customer:', id);
+  const toggleRowSelection = (index: number) => {
+    setSelectedRows(prev => 
+      prev.includes(index) 
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    );
   };
 
-  // Calculate pagination
-  const totalPages = Math.ceil(customers.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentCustomers = customers.slice(startIndex, endIndex);
+  const toggleSelectAll = () => {
+    if (selectedRows.length === transferRules.length) {
+      setSelectedRows([]);
+    } else {
+      setSelectedRows(transferRules.map((_, index) => index));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -264,7 +146,7 @@ export default function AgencyCustomersPage() {
               onMouseEnter={() => setShowAgencyDropdown(true)}
               onMouseLeave={() => setShowAgencyDropdown(false)}
             >
-              <button className="flex items-center space-x-2 text-orange-500 hover:text-orange-400 transition-colors whitespace-nowrap">
+              <button className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
@@ -278,38 +160,28 @@ export default function AgencyCustomersPage() {
                 </svg>
               </button>
               
-              {/* Dropdown Menu */}
               {showAgencyDropdown && (
                 <div className="absolute top-full left-0 mt-0 w-56 bg-black rounded-lg shadow-lg py-2 z-[999999] border border-gray-700">
-                  <a 
-                    href="/agency/agencies" 
-                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
-                  >
+                  <a href="/agency/agencies" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
                     <div className="flex items-center space-x-3">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
                     </div>
                   </a>
-                  <a 
-                    href="/agency/sales-representatives" 
-                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
-                  >
+                  <a href="/agency/sales-representatives" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
                     <div className="flex items-center space-x-3">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                       <span className="font-medium">Sales Representatives</span>
                     </div>
                   </a>
-                  <a 
-                    href="/agency/customers" 
-                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
-                  >
+                  <a href="/agency/customers" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
                     <div className="flex items-center space-x-3">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                       <span className="font-medium">Agency Customers</span>
                     </div>
@@ -324,7 +196,7 @@ export default function AgencyCustomersPage() {
               onMouseEnter={() => setShowProductDropdown(true)}
               onMouseLeave={() => setShowProductDropdown(false)}
             >
-              <a href="#" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+              <a href="#" className="flex items-center space-x-2 text-orange-500 hover:text-orange-400 transition-colors whitespace-nowrap">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
                 </svg>
@@ -338,13 +210,9 @@ export default function AgencyCustomersPage() {
                 </svg>
               </a>
               
-              {/* Dropdown Menu */}
               {showProductDropdown && (
                 <div className="absolute top-full left-0 mt-0 w-56 bg-black rounded-lg shadow-lg py-2 z-[999999] border border-gray-700">
-                  <a 
-                    href="/product/offers" 
-                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
-                  >
+                  <a href="/product/offers" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
                     <div className="flex items-center space-x-3">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" />
@@ -431,13 +299,13 @@ export default function AgencyCustomersPage() {
             
             {/* Reservations Dropdown */}
             <div 
-              className="relative"
+              className="relative z-[999998]"
               onMouseEnter={() => setShowReservationsDropdown(true)}
               onMouseLeave={() => setShowReservationsDropdown(false)}
             >
-              <a href="#" className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
+              <button className="flex items-center space-x-2 text-white hover:text-orange-500 transition-colors whitespace-nowrap">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                  <path d="M17 10H7v2h10v-2zm2-7h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zm-5-5H7v2h7v-2z"/>
                 </svg>
                 <span className="font-medium">Reservations</span>
                 <svg 
@@ -447,7 +315,7 @@ export default function AgencyCustomersPage() {
                 >
                   <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
-              </a>
+              </button>
               
               {/* Dropdown Menu */}
               {showReservationsDropdown && (
@@ -594,6 +462,7 @@ export default function AgencyCustomersPage() {
               )}
             </div>
             
+            {/* Reports Dropdown */}
             <div 
               className="relative"
               onMouseEnter={() => setShowReportsDropdown(true)}
@@ -663,254 +532,301 @@ export default function AgencyCustomersPage() {
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Page Title and Breadcrumb */}
         <div className="mb-6">
-          <h2 className="text-3xl font-bold text-gray-900">Agency Customers</h2>
-          <div className="flex items-center space-x-2 text-sm mt-2">
-            <a href="/" className="text-blue-500 hover:underline">Homepage</a>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Transfer Fee Rules</h1>
+          <div className="flex items-center space-x-2 text-sm">
+            <button 
+              onClick={() => router.push('/dashboard')}
+              className="text-blue-500 hover:text-blue-600 transition-colors"
+            >
+              Homepage
+            </button>
             <span className="text-gray-400">•</span>
-            <span className="text-gray-500">Agency Customers</span>
+            <span className="text-gray-500">Transfer Fee Rules</span>
           </div>
         </div>
 
-        {/* Search Criteria */}
-        <div className="bg-white rounded-lg shadow-md mb-6">
-          <div className="bg-orange-500 text-white px-6 py-3 rounded-t-lg">
-            <h3 className="text-lg font-semibold">Searching Criterias</h3>
+        {/* Search Criteria Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-orange-200 overflow-hidden mb-6">
+          {/* Orange Header */}
+          <div className="bg-orange-500 text-white px-6 py-4">
+            <h2 className="text-lg font-semibold">Searching Criterias</h2>
           </div>
+
+          {/* Search Form */}
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-              {/* Agency */}
-              <div>
-                <label className="block text-sm font-medium text-orange-500 mb-2">Agency</label>
-                <input
-                  type="text"
-                  value={agency}
-                  onChange={(e) => setAgency(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900"
-                />
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="block text-sm font-medium text-orange-500 mb-2">Status</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900"
-                >
-                  <option value="All">All</option>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               {/* Name */}
               <div>
                 <label className="block text-sm font-medium text-orange-500 mb-2">Name</label>
-                <input
-                  type="text"
+                <select
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900"
-                />
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white text-gray-700"
+                >
+                  <option value="">None selected</option>
+                  <option value="transfer1">Transfer 1</option>
+                  <option value="transfer2">Transfer 2</option>
+                </select>
               </div>
 
-              {/* Last Name */}
+              {/* Sales Channel */}
               <div>
-                <label className="block text-sm font-medium text-orange-500 mb-2">Last Name</label>
+                <label className="block text-sm font-medium text-orange-500 mb-2">Sales Channel</label>
+                <select
+                  value={salesChannel}
+                  onChange={(e) => setSalesChannel(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white text-gray-700"
+                >
+                  <option value="">None selected</option>
+                  <option value="online">Online</option>
+                  <option value="offline">Offline</option>
+                </select>
+              </div>
+
+              {/* Provider */}
+              <div>
+                <label className="block text-sm font-medium text-orange-500 mb-2">Provider</label>
+                <select
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white text-gray-700"
+                >
+                  <option value="All">All</option>
+                  <option value="provider1">Provider 1</option>
+                  <option value="provider2">Provider 2</option>
+                </select>
+              </div>
+
+              {/* Sort */}
+              <div>
+                <label className="block text-sm font-medium text-orange-500 mb-2">Sort</label>
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white text-gray-700"
+                >
+                  <option value="Reservation Date">Reservation Date</option>
+                  <option value="Transfer Date">Transfer Date</option>
+                  <option value="Name">Name</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+              {/* Date Range */}
+              <div className="lg:col-span-2">
+                <label className="block text-sm font-medium text-orange-500 mb-2">Date Range</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Agency Group / Company Group */}
+              <div>
+                <label className="block text-sm font-medium text-orange-500 mb-2">Agency Group / Company Group</label>
+                <select
+                  value={agencyGroup}
+                  onChange={(e) => setAgencyGroup(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white text-gray-700"
+                >
+                  <option value="">None selected</option>
+                  <option value="group1">Group 1</option>
+                  <option value="group2">Group 2</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Sub Companies */}
+              <div>
+                <label className="block text-sm font-medium text-orange-500 mb-2">Sub Companies</label>
                 <input
                   type="text"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900"
+                  value={subCompanies}
+                  onChange={(e) => setSubCompanies(e.target.value)}
+                  placeholder="Enter sub companies"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
-            </div>
 
-            {/* Search and Excel Buttons */}
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={handleSearch}
-                className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors flex items-center space-x-2"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-                </svg>
-                <span>Search</span>
-              </button>
-              <button
-                onClick={handleExportExcel}
-                className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center space-x-2 border border-blue-600"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-                </svg>
-                <span>EXCEL</span>
-              </button>
+              {/* Search Button */}
+              <div className="flex items-end">
+                <button
+                  onClick={handleSearch}
+                  className="w-full sm:w-auto px-8 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors font-medium flex items-center justify-center space-x-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <span>Search</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons and Pagination Info */}
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex space-x-3">
-            <button
-              onClick={handleNew}
-              className="px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 transition-colors flex items-center space-x-2"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-              </svg>
-              <span>New</span>
-            </button>
-            <button
-              onClick={handleExportExcel}
-              className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center space-x-2"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-              </svg>
-              <span>EXCEL</span>
-            </button>
-            <label className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center space-x-2 cursor-pointer">
-              <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleImportExcel} />
-              <span>Choose File</span>
-              <span className="text-gray-400">No file chosen</span>
-            </label>
-            <button
-              onClick={handleImportExcel}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center space-x-2"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
-              </svg>
-              <span>Excel</span>
-            </button>
-          </div>
-          <div className="text-sm text-orange-500 font-semibold">
-            Total Recording Number: {customers.length} <span className="text-gray-600">Pagination</span>
-          </div>
-        </div>
+        {/* Actions and Stats Bar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
+          <button
+            onClick={handleNew}
+            className="px-6 py-2 bg-cyan-500 text-white rounded-md hover:bg-cyan-600 transition-colors font-medium flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>New</span>
+          </button>
 
-        {/* Pagination Controls */}
-        <div className="flex justify-end items-center space-x-2 mb-4">
-          <button
-            onClick={() => setCurrentPage(1)}
-            disabled={currentPage === 1}
-            className="px-3 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            1
-          </button>
-          <button
-            onClick={() => setCurrentPage(2)}
-            disabled={currentPage === 2 || totalPages < 2}
-            className="px-3 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            2
-          </button>
-          <select
-            value={itemsPerPage}
-            onChange={(e) => setItemsPerPage(Number(e.target.value))}
-            className="px-3 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900"
-          >
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
+          <div className="flex items-center space-x-4 ml-auto">
+            <span className="text-sm text-orange-500 font-medium">
+              Total Recording Number: <span className="font-bold">{totalRecords}</span>
+            </span>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600">Pagination</span>
+              <input
+                type="number"
+                value={currentPage}
+                onChange={(e) => setCurrentPage(parseInt(e.target.value) || 1)}
+                min="1"
+                className="w-16 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <select
+                value={itemsPerPage}
+                onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
+                className="px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         {/* Data Table */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-4">
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="w-full">
               <thead className="bg-gray-600 text-white">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                  <th className="px-4 py-3 text-left">
                     <input
                       type="checkbox"
-                      onChange={handleSelectAll}
-                      className="w-4 h-4"
+                      checked={selectedRows.length === transferRules.length && transferRules.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-gray-300 focus:ring-2 focus:ring-orange-500"
                     />
                   </th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Rule</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Sales Channel</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Provider</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Fare Type</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Fare</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Price Range</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Agency Group / Company Group</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Agent Inclusion Type</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">Agency</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">Type</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">Gender</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">Name - Last Name</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">Birth Date</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">ID Number</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">Passport Number</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold"></th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Reservation Date</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Transfer Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {currentCustomers.map((customer) => (
-                  <tr key={customer.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={customer.selected}
-                        onChange={() => handleSelectCustomer(customer.id)}
-                        className="w-4 h-4"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{customer.agency}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{customer.type}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{customer.gender}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{customer.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{customer.birthDate}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{customer.idNumber}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{customer.passportNumber}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{customer.status}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleEdit(customer.id)}
-                        className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                        </svg>
-                      </button>
+                {transferRules.length === 0 ? (
+                  <tr>
+                    <td colSpan={13} className="px-4 py-8 text-center text-gray-500">
+                      No records found. Click "New" to create a transfer fee rule.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  transferRules.map((rule, index) => (
+                    <tr 
+                      key={index}
+                      className={`hover:bg-gray-50 transition-colors ${selectedRows.includes(index) ? 'bg-blue-50' : ''}`}
+                    >
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.includes(index)}
+                          onChange={() => toggleRowSelection(index)}
+                          className="w-4 h-4 rounded border-gray-300 focus:ring-2 focus:ring-orange-500"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-sm">{rule.name}</td>
+                      <td className="px-4 py-3 text-sm">{rule.rule}</td>
+                      <td className="px-4 py-3 text-sm">{rule.salesChannel}</td>
+                      <td className="px-4 py-3 text-sm">{rule.provider}</td>
+                      <td className="px-4 py-3 text-sm">{rule.fareType}</td>
+                      <td className="px-4 py-3 text-sm">{rule.fare}</td>
+                      <td className="px-4 py-3 text-sm">{rule.priceRange}</td>
+                      <td className="px-4 py-3 text-sm">{rule.agencyGroup}</td>
+                      <td className="px-4 py-3 text-sm">{rule.agentInclusionType}</td>
+                      <td className="px-4 py-3 text-sm">{rule.agency}</td>
+                      <td className="px-4 py-3 text-sm">{rule.reservationDate}</td>
+                      <td className="px-4 py-3 text-sm">{rule.transferDate}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
         {/* Delete Button */}
-        <div className="flex justify-end mb-6">
+        <div className="flex justify-end">
           <button
             onClick={handleDelete}
-            className="px-6 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors flex items-center space-x-2"
+            disabled={selectedRows.length === 0}
+            className={`px-6 py-2 rounded-md font-medium flex items-center space-x-2 transition-colors ${
+              selectedRows.length === 0
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-red-500 text-white hover:bg-red-600'
+            }`}
           >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
             <span>Delete</span>
           </button>
         </div>
-      </div>
+      </main>
 
       {/* Footer */}
-      <footer className="bg-black text-white py-6 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
-          <p className="text-sm">
-            Copyright © 2025. Powered by <span className="text-yellow-400 font-bold">Y</span>
-          </p>
+      <footer className="bg-black text-white py-4 mt-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between">
+            {/* Left - Logo Circle */}
+            <div className="flex items-center">
+              <div className="w-10 h-10 border-2 border-white rounded-full flex items-center justify-center">
+                <span className="text-lg font-bold">N</span>
+              </div>
+            </div>
+
+            {/* Center - Copyright */}
+            <div className="text-sm">
+              <p>Copyright © 2025. Powered by <span className="text-yellow-400 font-bold">Y</span></p>
+            </div>
+
+            <div className="w-10" aria-hidden="true" />
+          </div>
         </div>
       </footer>
     </div>
   );
 }
-
-
-
-
-
-
-

@@ -17,14 +17,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import HeaderUserMenu from '@/components/HeaderUserMenu';
 
 export default function Panel() {
   const router = useRouter();
-  const [showScrollUp, setShowScrollUp] = useState(false);
   const [amount, setAmount] = useState("");
   const [fromCurrency, setFromCurrency] = useState("USD");
   const [toCurrency, setToCurrency] = useState("USD");
-  const [currentTime, setCurrentTime] = useState(new Date());
   
   // Dropdown States
   const [showAgencyDropdown, setShowAgencyDropdown] = useState(false);
@@ -34,14 +33,6 @@ export default function Panel() {
   const [showReservationsDropdown, setShowReservationsDropdown] = useState(false);
   const [showFinanceDropdown, setShowFinanceDropdown] = useState(false);
   const [showReportsDropdown, setShowReportsDropdown] = useState(false);
-
-  // Update time every minute
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Close fare rule submenu when clicking outside
   useEffect(() => {
@@ -56,42 +47,10 @@ export default function Panel() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [fareRuleSubmenuLocked]);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      setShowScrollUp(scrollTop > 300);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
   const handleLogout = () => {
     // Remove authentication cookie
     document.cookie = 'isLoggedIn=false; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
     router.push('/');
-  };
-
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-  };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-GB', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
   };
 
   const currencies = ["USD", "EUR", "TRY", "IQD"];
@@ -112,50 +71,7 @@ export default function Panel() {
               />
               <h1 className="text-2xl font-bold text-gray-800">TRUE TRAVEL</h1>
             </a>
-            <div className="flex items-center space-x-6">
-              {/* User Information */}
-              <div className="flex items-center space-x-4 border-r border-gray-300 pr-6">
-                <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-                  </svg>
-                  <span className="text-sm text-gray-600 font-medium">+964 750 328 2768</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                      9
-                    </div>
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">YP</span>
-                    </div>
-                  </div>
-                  <div className="text-sm">
-                    <p className="font-medium text-gray-800">Younis Pshtiwan</p>
-                    <p className="text-xs text-gray-500">🇬🇧 English (USD)</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="text-sm text-red-500 hover:text-red-600 font-medium transition-colors"
-                >
-                  Logout
-                </button>
-              </div>
-              
-              {/* Time and Settings */}
-              <div className="flex items-center space-x-4">
-                <div className="text-right">
-                  <div className="text-3xl font-light text-gray-800">{formatTime(currentTime)}</div>
-                  <div className="text-sm text-gray-500">{formatDate(currentTime)}</div>
-                </div>
-                <button className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
+            <HeaderUserMenu onLogout={handleLogout} />
           </div>
         </div>
       </header>
@@ -609,7 +525,7 @@ export default function Panel() {
                 <div className="relative w-20 h-20 mx-auto mb-3">
                   <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="40" stroke="#e5e7eb" strokeWidth="8" fill="none" />
-                    <circle cx="50" cy="50" r="40" stroke="#f59e0b" strokeWidth="8" fill="none" 
+                    <circle cx="50" cy="50" r="40" stroke="#155dfc" strokeWidth="8" fill="none" 
                             strokeDasharray="251.2" strokeDashoffset="0" />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -779,17 +695,6 @@ export default function Panel() {
           </div>
         </div>
       </footer>
-
-      {/* Scroll Up Button */}
-      {showScrollUp && (
-        <button
-          onClick={scrollToTop}
-          className="fixed bottom-6 right-6 z-50 bg-black hover:bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg transition-all duration-300"
-          aria-label="Scroll to top"
-        >
-          <span className="text-sm font-bold">↑ Scroll Up</span>
-        </button>
-      )}
     </div>
   );
 }

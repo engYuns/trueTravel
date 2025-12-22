@@ -1,16 +1,15 @@
 'use client';
 
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import Image from 'next/image';
 import FlightSearchForm from '@/components/FlightSearchForm';
+import HeaderUserMenu from '@/components/HeaderUserMenu';
 
 function FlightResultContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Time state
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [showAgencyDropdown, setShowAgencyDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [showFareRuleSubmenu, setShowFareRuleSubmenu] = useState(false);
@@ -19,17 +18,36 @@ function FlightResultContent() {
   const [showFinanceDropdown, setShowFinanceDropdown] = useState(false);
   const [showReportsDropdown, setShowReportsDropdown] = useState(false);
   
+  const formatPassengers = (adults: number, children: number, infants: number) => {
+    const a = Number.isFinite(adults) ? adults : 1;
+    const c = Number.isFinite(children) ? children : 0;
+    const i = Number.isFinite(infants) ? infants : 0;
+    return `${a} Adult${a === 1 ? '' : 's'}, ${c} Child${c === 1 ? '' : 'ren'}, ${i} Infant${i === 1 ? '' : 's'}`;
+  };
+
+  const urlAdults = Number(searchParams.get('adults') || '');
+  const urlChildren = Number(searchParams.get('children') || '');
+  const urlInfants = Number(searchParams.get('infants') || '');
+  const passengersFromUrlCounts =
+    Number.isFinite(urlAdults) || Number.isFinite(urlChildren) || Number.isFinite(urlInfants)
+      ? formatPassengers(Number.isFinite(urlAdults) ? urlAdults : 1, Number.isFinite(urlChildren) ? urlChildren : 0, Number.isFinite(urlInfants) ? urlInfants : 0)
+      : null;
+
   // Search criteria from URL params - now editable
   const [fromLocation, setFromLocation] = useState(searchParams.get('from') || '');
   const [toLocation, setToLocation] = useState(searchParams.get('to') || '');
   const [departureDate, setDepartureDate] = useState(searchParams.get('departureDate') || '');
   const [returnDate, setReturnDate] = useState(searchParams.get('returnDate') || '');
-  const [passengers, setPassengers] = useState(searchParams.get('passengers') || '1 Adult');
-  const [flightClass, setFlightClass] = useState(searchParams.get('class') || 'Economy');
+  const [passengers, setPassengers] = useState(
+    passengersFromUrlCounts || searchParams.get('passengers') || '1 Adult, 0 Child, 0 Infant'
+  );
+  const [flightClass, setFlightClass] = useState(searchParams.get('flightClass') || searchParams.get('class') || 'Economy');
   const [tripType, setTripType] = useState(searchParams.get('tripType') || 'Roundtrip');
   const [isDirect, setIsDirect] = useState(searchParams.get('isDirect') === 'true');
-  const [markup, setMarkup] = useState('');
-  const [amount, setAmount] = useState('');
+  const [markup, setMarkup] = useState(searchParams.get('markup') || '0');
+  const [markupType, setMarkupType] = useState<'fixed' | 'percentage'>(
+    (searchParams.get('markupType') as 'fixed' | 'percentage') || 'fixed'
+  );
   
   // Combined search criteria object for compatibility
   const searchCriteria = {
@@ -41,6 +59,8 @@ function FlightResultContent() {
     class: flightClass,
     tripType,
     isDirect,
+    markup,
+    markupType,
   };
   
   // Location autocomplete state
@@ -54,13 +74,15 @@ function FlightResultContent() {
   const [flights, setFlights] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const [carrierNames, setCarrierNames] = useState<Record<string, string>>({});
   
   // Filter states
   const [selectedAirlines, setSelectedAirlines] = useState<string[]>([]);
   const [selectedBaggage, setSelectedBaggage] = useState<string[]>([]);
   const [selectedStops, setSelectedStops] = useState<string[]>([]);
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [selectedCabinType, setSelectedCabinType] = useState<string[]>([]);
+  const [priceBounds, setPriceBounds] = useState({ min: 0, max: 10000 });
   const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
   const [departureTimeRange, setDepartureTimeRange] = useState({ start: 0, end: 1439 });
   const [returnTimeRange, setReturnTimeRange] = useState({ start: 0, end: 1439 });
@@ -75,42 +97,156 @@ function FlightResultContent() {
   const [selectedReturnFlight, setSelectedReturnFlight] = useState<any>(null);
   const [showReturnFlights, setShowReturnFlights] = useState(false);
   const [returnFlights, setReturnFlights] = useState<any[]>([]);
+
+  // Per-flight hidden details (Trip Details)
+  const [openTripDetailsByKey, setOpenTripDetailsByKey] = useState<Record<string, boolean>>({});
   
   // Booking modal state
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [bookingFlightClasses, setBookingFlightClasses] = useState<{ outbound: any[], return: any[] }>({ outbound: [], return: [] });
-  const [selectedOutboundClass, setSelectedOutboundClass] = useState<any>(null);
-  const [selectedReturnClass, setSelectedReturnClass] = useState<any>(null);
-  const [isLoadingClasses, setIsLoadingClasses] = useState(false);
+
+  const mergeCarrierNames = (next: any) => {
+    if (!next || typeof next !== 'object') return;
+    setCarrierNames((prev) => ({ ...prev, ...next }));
+  };
+
+  const [locationLabelByCode, setLocationLabelByCode] = useState<Record<string, string>>({});
+  const locationLookupInFlight = useRef<Record<string, boolean>>({});
+
+  const ensureLocationMeta = async (iataCode: string) => {
+    const code = String(iataCode || '').trim().toUpperCase();
+    if (!code) return;
+    if (locationLabelByCode[code]) return;
+    if (locationLookupInFlight.current[code]) return;
+
+    locationLookupInFlight.current[code] = true;
+    try {
+      const res = await fetch(`/api/locations/search?keyword=${encodeURIComponent(code)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data?.data) ? data.data : [];
+      const exact = list.find((x: any) => String(x?.code || '').toUpperCase() === code);
+      const best = exact || list[0];
+      const cityOrName = String(best?.city || best?.name || '').trim();
+      const label = cityOrName ? `${code} - ${cityOrName}` : code;
+      setLocationLabelByCode((prev) => ({ ...prev, [code]: label }));
+    } catch {
+      // ignore
+    } finally {
+      locationLookupInFlight.current[code] = false;
+    }
+  };
+
+  const getLocationLabel = (iataCode: string) => {
+    const code = String(iataCode || '').trim().toUpperCase();
+    if (!code) return '';
+    return locationLabelByCode[code] || code;
+  };
+
+  const getSegments = (flight: any) => {
+    return flight?.originalOffer?.itineraries?.[0]?.segments || [];
+  };
+
+  const getFlightKey = (flight: any) => {
+    if (!flight) return 'unknown';
+    const amadeusId = flight?.amadeus_id || flight?.originalOffer?.id;
+    if (amadeusId) return String(amadeusId);
+
+    const segs = flight?.originalOffer?.itineraries?.[0]?.segments;
+    const first = Array.isArray(segs) ? segs[0] : null;
+    const last = Array.isArray(segs) ? segs[segs.length - 1] : null;
+    return [
+      flight?.carrierCode,
+      first?.departure?.iataCode,
+      first?.departure?.at,
+      last?.arrival?.iataCode,
+      last?.arrival?.at,
+      flight?.price,
+    ]
+      .filter(Boolean)
+      .map((v) => String(v))
+      .join('|');
+  };
+
+  const toggleTripDetails = (flight: any) => {
+    const key = getFlightKey(flight);
+    setOpenTripDetailsByKey((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      return next;
+    });
+
+    const segs = getSegments(flight);
+    for (const seg of segs) {
+      const dep = String(seg?.departure?.iataCode || '');
+      const arr = String(seg?.arrival?.iataCode || '');
+      ensureLocationMeta(dep);
+      ensureLocationMeta(arr);
+    }
+  };
+
+  const minutesBetween = (aIso: string, bIso: string) => {
+    const a = new Date(aIso).getTime();
+    const b = new Date(bIso).getTime();
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+    return Math.max(0, Math.round((b - a) / 60000));
+  };
+
+  const formatMinutes = (mins: number) => {
+    const m = Number.isFinite(mins) ? Math.max(0, Math.round(mins)) : 0;
+    const h = Math.floor(m / 60);
+    const r = m % 60;
+    if (h <= 0) return `${r}m`;
+    if (r <= 0) return `${h}h`;
+    return `${h}h ${r}m`;
+  };
+
+  const formatIsoDurationToPretty = (iso: string) => {
+    const s = String(iso || '');
+    const h = Number.parseInt(s.match(/(\d+)H/)?.[1] || '0');
+    const m = Number.parseInt(s.match(/(\d+)M/)?.[1] || '0');
+    return formatMinutes(h * 60 + m);
+  };
+
+  const formatTimeHM = (iso: string) => {
+    const d = new Date(iso);
+    if (!Number.isFinite(d.getTime())) return '';
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDateDMY = (iso: string) => {
+    const d = new Date(iso);
+    if (!Number.isFinite(d.getTime())) return '';
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  const getCarrierCode = (flight: any): string => {
+    return (
+      flight?.carrierCode ||
+      flight?.originalOffer?.itineraries?.[0]?.segments?.[0]?.carrierCode ||
+      ''
+    );
+  };
+
+  const getCarrierLabel = (carrierCode: string): string => {
+    if (!carrierCode) return 'Unknown';
+    return carrierNames?.[carrierCode] || carrierCode;
+  };
+
+  const getCheckedBaggageLabel = (flight: any): string | null => {
+    const offer = flight?.originalOffer;
+    const included = offer?.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.includedCheckedBags;
+    const quantity = included?.quantity;
+    const weight = included?.weight;
+    const weightUnit = included?.weightUnit;
+    if (typeof quantity === 'number') return `${quantity} PC`;
+    if (typeof weight === 'number' && weightUnit) return `${weight} ${String(weightUnit).toUpperCase()}`;
+    return null;
+  };
 
   // Helper functions for header
   const handleLogout = () => {
     document.cookie = 'isLoggedIn=false; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
     router.push('/');
   };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-GB', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
-
-  // Update time every minute
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Close fare rule submenu when clicking outside
   useEffect(() => {
@@ -125,6 +261,7 @@ function FlightResultContent() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [fareRuleSubmenuLocked]);
 
+
   // Helper function to change date by days
   const changeDateByDays = (dateString: string, days: number): string => {
     const date = new Date(dateString);
@@ -132,30 +269,66 @@ function FlightResultContent() {
     return date.toISOString().split('T')[0];
   };
 
+  const parsePrice = (value: any): number => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const cleaned = value.replace(/[^0-9.]/g, '');
+      const parsed = Number.parseFloat(cleaned);
+      return Number.isFinite(parsed) ? parsed : NaN;
+    }
+    return NaN;
+  };
+
+  const applyMarkupValue = (basePrice: number, mk: string | undefined, mkType: string | undefined) => {
+    const base = Number.isFinite(basePrice) ? basePrice : 0;
+    const markupNum = Number.parseFloat(String(mk ?? '0'));
+    if (!Number.isFinite(markupNum) || markupNum === 0) return base;
+    if (mkType === 'percentage') return base + (base * markupNum) / 100;
+    return base + markupNum;
+  };
+
+  const withMarkupFlight = (flight: any, mk: string | undefined, mkType: string | undefined) => {
+    const base = parsePrice(flight?.basePrice ?? flight?.price ?? flight?.originalOffer?.price?.total);
+    const basePrice = Number.isFinite(base) ? base : 0;
+    const marked = applyMarkupValue(basePrice, mk, mkType);
+    const price = Math.round(marked * 100) / 100;
+    return {
+      ...flight,
+      basePrice,
+      price,
+    };
+  };
+
   // Function to search flights with new date
-  const searchFlightsForDate = async (newDepartureDate: string, newReturnDate: string | null = null, criteria: any = null) => {
+  const searchFlightsForDate = async (
+    newDepartureDate: string,
+    newReturnDate: string | null,
+    criteriaOverride?: any
+  ) => {
     setIsLoading(true);
     setError('');
 
     try {
-      // Use passed criteria or current searchCriteria state
-      const activeCriteria = criteria || searchCriteria;
-      
-      // Extract airport codes from location strings
-      const originCode = activeCriteria.from.split(' - ')[0].trim();
-      const destinationCode = activeCriteria.to.split(' - ')[0].trim();
+      let activeCriteria = criteriaOverride || searchCriteria;
+      try {
+        const stored = localStorage.getItem('flightSearchCriteria');
+        if (!criteriaOverride && stored) activeCriteria = JSON.parse(stored);
+      } catch {
+        // ignore
+      }
 
-      // Prepare API request
+      const originCode = String(activeCriteria?.from || '').split(' - ')[0].trim();
+      const destinationCode = String(activeCriteria?.to || '').split(' - ')[0].trim();
+
       const requestBody = {
         originLocationCode: originCode,
         destinationLocationCode: destinationCode,
         departureDate: newDepartureDate,
-        returnDate: activeCriteria.tripType === 'Roundtrip' && newReturnDate ? newReturnDate : undefined,
-        adults: parseInt(activeCriteria.passengers.match(/(\d+)\s*Adult/)?.[1] || '1'),
-        children: parseInt(activeCriteria.passengers.match(/(\d+)\s*Child/)?.[1] || '0'),
-        infants: parseInt(activeCriteria.passengers.match(/(\d+)\s*Infant/)?.[1] || '0'),
-        travelClass: activeCriteria.class,
-        nonStop: activeCriteria.isDirect,
+        adults: parseInt(String(activeCriteria?.passengers || '').match(/(\d+)\s*Adult/)?.[1] || '1'),
+        children: parseInt(String(activeCriteria?.passengers || '').match(/(\d+)\s*Child/)?.[1] || '0'),
+        infants: parseInt(String(activeCriteria?.passengers || '').match(/(\d+)\s*Infant/)?.[1] || '0'),
+        travelClass: activeCriteria?.class ?? activeCriteria?.flightClass,
+        nonStop: Boolean(activeCriteria?.isDirect),
         currencyCode: 'USD',
         maxResults: 50,
       };
@@ -177,32 +350,71 @@ function FlightResultContent() {
       }
 
       const data = await response.json();
-      
+
       if (data.success && data.data) {
         console.log(`Found ${data.data.length} flights for new date`);
-        
+
+        const mk = String(activeCriteria?.markup ?? markup ?? '0');
+        const mkType = String(activeCriteria?.markupType ?? markupType ?? 'fixed');
+        setMarkup(mk);
+        setMarkupType(mkType === 'percentage' ? 'percentage' : 'fixed');
+        const mapped = (data.data || []).map((f: any) => withMarkupFlight(f, mk, mkType));
+
         // Update flights
-        setFlights(data.data);
-        
+        setFlights(mapped);
+
         // Store in localStorage
-        localStorage.setItem('flightSearchResults', JSON.stringify(data.data));
-        
+        localStorage.setItem('flightSearchResults', JSON.stringify(mapped));
+        try {
+          localStorage.setItem(
+            'flightSearchCriteria',
+            JSON.stringify({
+              ...activeCriteria,
+              departureDate: newDepartureDate,
+              returnDate: newReturnDate ?? activeCriteria?.returnDate,
+              class: activeCriteria?.class ?? activeCriteria?.flightClass,
+              markup: mk,
+              markupType: mkType,
+            })
+          );
+        } catch {
+          // ignore
+        }
+
+        if (data.dictionaries?.carriers) {
+          mergeCarrierNames(data.dictionaries.carriers);
+          try {
+            const storedCarrierNames = localStorage.getItem('flightCarrierNames');
+            const existing = storedCarrierNames ? JSON.parse(storedCarrierNames) : {};
+            localStorage.setItem(
+              'flightCarrierNames',
+              JSON.stringify({
+                ...(existing || {}),
+                ...data.dictionaries.carriers,
+              })
+            );
+          } catch {
+            localStorage.setItem('flightCarrierNames', JSON.stringify(data.dictionaries.carriers));
+          }
+        }
+
         // Update dates
         setDepartureDate(newDepartureDate);
         if (newReturnDate) {
           setReturnDate(newReturnDate);
         }
-        
+
         // Calculate price range from results
-        if (data.data.length > 0) {
-          const prices = data.data.map((f: any) => f.price || 0);
-          setPriceRange({ min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) });
+        if (mapped.length > 0) {
+          const prices = mapped.map((f: any) => parsePrice(f?.price)).filter((p: number) => Number.isFinite(p));
+          if (prices.length > 0) {
+            setPriceRange({ min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) });
+          }
         }
       } else {
         setFlights([]);
         setError('No flights found for this date');
       }
-
     } catch (error: any) {
       console.error('Flight search error:', error);
       setError(error.message || 'Failed to search flights. Please try again.');
@@ -310,7 +522,9 @@ function FlightResultContent() {
       console.log('Return flights API response:', data);
 
       if (data.success && data.data && data.data.length > 0) {
-        setReturnFlights(data.data);
+        const mk = String(searchCriteria?.markup ?? markup ?? '0');
+        const mkType = String(searchCriteria?.markupType ?? markupType ?? 'fixed');
+        setReturnFlights((data.data || []).map((f: any) => withMarkupFlight(f, mk, mkType)));
       } else {
         setReturnFlights([]);
         setError('No return flights found for this date');
@@ -341,122 +555,21 @@ function FlightResultContent() {
     }
   };
 
-  // Handle BUY NOW button - fetch flight class options
-  const handleBuyNow = async () => {
-    setIsLoadingClasses(true);
+  // Handle BUY NOW button - confirm and continue to booking
+  const handleBuyNow = () => {
+    if (!selectedOutboundFlight) return;
+    if (searchCriteria.tripType === 'Roundtrip' && !selectedReturnFlight) return;
     setShowBookingModal(true);
-    
-    try {
-      // Fetch flight class options from Amadeus API
-      // We'll use the Amadeus Flight Offers Price API to get detailed pricing with different classes
-      const outboundOfferId = selectedOutboundFlight?.amadeus_id || selectedOutboundFlight?.id;
-      const returnOfferId = selectedReturnFlight?.amadeus_id || selectedReturnFlight?.id;
-      
-      console.log('Fetching class options for:', { outboundOfferId, returnOfferId });
-      
-      // For now, simulate the class data based on the selected flights
-      // In production, you would call the Amadeus Flight Offers Price API
-      const outboundClasses = [
-        {
-          name: 'Economy Value',
-          features: [
-            { text: 'FREE BAGGAGE ALLOWANCE', available: true },
-            { text: 'CARRY ON BAGGAGE', available: true },
-            { text: 'MILEAGE ACCRUAL', available: true },
-            { text: 'CHANGEABLE TICKET', available: false, cost: true },
-            { text: 'REFUND BEFORE DEPARTURE', available: false, cost: true },
-            { text: 'PRE RESERVED SEAT ASSIGNMENT', available: false },
-          ],
-          price: selectedOutboundFlight?.price || 0,
-          selected: true,
-        },
-        {
-          name: 'Economy Flex',
-          features: [
-            { text: 'FREE BAGGAGE ALLOWANCE', available: true },
-            { text: 'CARRY ON BAGGAGE', available: true },
-            { text: 'MILEAGE ACCRUAL', available: true },
-            { text: 'CHANGEABLE TICKET', available: true },
-            { text: 'REFUND AFTER DEPARTURE', available: true },
-            { text: 'REFUND BEFORE DEPARTURE', available: true },
-          ],
-          price: (selectedOutboundFlight?.price || 0) * 1.25,
-          selected: false,
-        },
-        {
-          name: 'Business Flex',
-          features: [
-            { text: 'FREE BAGGAGE ALLOWANCE', available: true },
-            { text: 'CARRY ON BAGGAGE', available: true },
-            { text: 'MILEAGE ACCRUAL', available: true },
-            { text: 'PRE RESERVED SEAT ASSIGNMENT', available: true },
-            { text: 'CHANGEABLE TICKET', available: false, cost: true },
-            { text: 'REFUND AFTER DEPARTURE', available: false, cost: true },
-          ],
-          price: (selectedOutboundFlight?.price || 0) * 2.88,
-          selected: false,
-        },
-      ];
-
-      const returnClasses = [
-        {
-          name: 'Basic',
-          features: [
-            { text: '1X8 KG Cabin Baggage', available: true },
-            { text: 'MILEAGE ACCRUAL', available: true },
-            { text: 'CHANGEABLE TICKET', available: false, cost: true },
-            { text: 'REFUND BEFORE DEPARTURE', available: false, cost: true },
-            { text: 'PRE RESERVED SEAT ASSIGNMENT', available: false },
-          ],
-          price: selectedReturnFlight?.price || 0,
-          selected: true,
-        },
-        {
-          name: 'ECOJET',
-          features: [
-            { text: '1X8 KG Cabin Baggage', available: true },
-            { text: '1X20 KG Baggage', available: true },
-            { text: 'Changeable With Penalty', available: true },
-            { text: 'REFUND AFTER DEPARTURE', available: true },
-            { text: 'REFUND BEFORE DEPARTURE', available: true },
-          ],
-          price: (selectedReturnFlight?.price || 0) * 1.19,
-          selected: false,
-        },
-        {
-          name: 'FLEX',
-          features: [
-            { text: '1X8 KG Cabin Baggage', available: true },
-            { text: 'Standart Seat Selection', available: true },
-            { text: 'Changeable With Penalty', available: true },
-            { text: 'Refundable With Penalty', available: true },
-          ],
-          price: (selectedReturnFlight?.price || 0) * 1.32,
-          selected: false,
-        },
-      ];
-
-      setBookingFlightClasses({
-        outbound: outboundClasses,
-        return: returnClasses,
-      });
-      
-      setSelectedOutboundClass(outboundClasses[0]);
-      setSelectedReturnClass(returnClasses[0]);
-      
-    } catch (error) {
-      console.error('Error fetching class options:', error);
-    } finally {
-      setIsLoadingClasses(false);
-    }
   };
 
   // Handle Select Flight button
   const handleSelectFlight = async (flight: any) => {
     // If it's a one-way trip or return flights are already shown, just select the flight
     if (searchCriteria.tripType !== 'Roundtrip') {
-      console.log('One-way flight selected:', flight);
-      // TODO: Navigate to booking page or show booking form
+      setSelectedOutboundFlight(flight);
+      setSelectedReturnFlight(null);
+      setShowReturnFlights(false);
+      setReturnFlights([]);
       return;
     }
 
@@ -525,11 +638,29 @@ function FlightResultContent() {
       const data = await response.json();
       
       if (data.success && data.data) {
+        if (data.dictionaries?.carriers) {
+          mergeCarrierNames(data.dictionaries.carriers);
+          try {
+            const storedCarrierNames = localStorage.getItem('flightCarrierNames');
+            const existing = storedCarrierNames ? JSON.parse(storedCarrierNames) : {};
+            localStorage.setItem('flightCarrierNames', JSON.stringify({
+              ...(existing || {}),
+              ...data.dictionaries.carriers,
+            }));
+          } catch {
+            // ignore
+          }
+        }
+
         console.log(`Found ${data.data.length} return flights`);
         console.log('Selected outbound airline:', outboundFlight?.airline, 'Logo:', outboundFlight?.logo);
+
+        const mk = String(searchCriteria?.markup ?? markup ?? '0');
+        const mkType = String(searchCriteria?.markupType ?? markupType ?? 'fixed');
+        const mapped = (data.data || []).map((f: any) => withMarkupFlight(f, mk, mkType));
         
         // Create a copy and sort return flights: same airline first, then others
-        const sortedReturnFlights = [...data.data].sort((a: any, b: any) => {
+        const sortedReturnFlights = [...mapped].sort((a: any, b: any) => {
           const aCarrierCode = a.carrierCode || '';
           const bCarrierCode = b.carrierCode || '';
           const selectedCarrierCode = outboundFlight?.carrierCode || '';
@@ -587,48 +718,130 @@ function FlightResultContent() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      // Load search criteria from localStorage
-      const storedCriteria = localStorage.getItem('searchCriteria');
+      const storedCarrierNames = localStorage.getItem('flightCarrierNames');
+      if (storedCarrierNames) {
+        try {
+          mergeCarrierNames(JSON.parse(storedCarrierNames));
+        } catch {
+          // ignore
+        }
+      }
+
+      // Load search criteria from localStorage (prefer unified key)
+      const storedCriteria = localStorage.getItem('flightSearchCriteria') || localStorage.getItem('searchCriteria');
       if (storedCriteria) {
         const criteria = JSON.parse(storedCriteria);
+        const normalized = {
+          from: criteria.from ?? fromLocation,
+          to: criteria.to ?? toLocation,
+          departureDate: criteria.departureDate ?? departureDate,
+          returnDate: criteria.returnDate ?? returnDate,
+          passengers:
+            criteria.passengers ||
+            formatPassengers(
+              Number.isFinite(Number(criteria.adults)) ? Number(criteria.adults) : 1,
+              Number.isFinite(Number(criteria.children)) ? Number(criteria.children) : 0,
+              Number.isFinite(Number(criteria.infants)) ? Number(criteria.infants) : 0
+            ),
+          class: criteria.class ?? criteria.flightClass ?? flightClass,
+          tripType: criteria.tripType ?? tripType,
+          isDirect: typeof criteria.isDirect === 'boolean' ? criteria.isDirect : isDirect,
+          markup: String(criteria.markup ?? markup ?? '0'),
+          markupType: (criteria.markupType === 'percentage' ? 'percentage' : 'fixed') as 'fixed' | 'percentage',
+        };
+
         // Update individual state variables
-        setFromLocation(criteria.from || fromLocation);
-        setToLocation(criteria.to || toLocation);
-        setDepartureDate(criteria.departureDate || departureDate);
-        setReturnDate(criteria.returnDate || returnDate);
-        setPassengers(criteria.passengers || passengers);
-        setFlightClass(criteria.class || flightClass);
-        setTripType(criteria.tripType || tripType);
-        setIsDirect(criteria.isDirect || isDirect);
+        setFromLocation(normalized.from);
+        setToLocation(normalized.to);
+        setDepartureDate(normalized.departureDate);
+        setReturnDate(normalized.returnDate);
+        setPassengers(normalized.passengers);
+        setFlightClass(normalized.class);
+        setTripType(normalized.tripType);
+        setIsDirect(normalized.isDirect);
+        setMarkup(normalized.markup);
+        setMarkupType(normalized.markupType);
         
         // Fetch fresh departure flights from API (real-time data)
         console.log('Fetching fresh departure flights from API...');
-        await searchFlightsForDate(criteria.departureDate, criteria.returnDate, criteria);
+        await searchFlightsForDate(normalized.departureDate, normalized.returnDate, normalized);
         
         // Automatically search for return flights if roundtrip
-        if (criteria.tripType === 'Roundtrip' && criteria.returnDate) {
+        if (normalized.tripType === 'Roundtrip' && normalized.returnDate) {
           console.log('Loading return flights for roundtrip...');
-          await searchReturnFlightsInitial(criteria);
+          await searchReturnFlightsInitial(normalized);
         }
       } else {
-        // Fallback: Load flights from localStorage if no criteria found
-        const storedFlights = localStorage.getItem('flightSearchResults');
-        if (storedFlights) {
-          const results = JSON.parse(storedFlights);
-          setFlights(results);
-          
-          // Calculate price range from results
-          if (results.length > 0) {
-            const prices = results.map((f: any) => f.price || 0);
-            setPriceRange({ min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) });
+        // If we have URL params / state-based criteria, fetch fresh data.
+        const hasEnoughCriteria =
+          Boolean(fromLocation) &&
+          Boolean(toLocation) &&
+          Boolean(departureDate);
+
+        if (hasEnoughCriteria) {
+          const criteria = {
+            ...searchCriteria,
+            from: fromLocation,
+            to: toLocation,
+            departureDate,
+            returnDate,
+            passengers,
+            class: flightClass,
+            tripType,
+            isDirect,
+            markup,
+            markupType,
+          };
+
+          console.log('Fetching fresh flights from URL criteria...');
+          await searchFlightsForDate(criteria.departureDate, criteria.returnDate, criteria);
+          if (criteria.tripType === 'Roundtrip' && criteria.returnDate) {
+            await searchReturnFlightsInitial(criteria);
           }
+        } else {
+          // Final fallback: Load flights from localStorage if no criteria found
+          const storedFlights = localStorage.getItem('flightSearchResults');
+          if (storedFlights) {
+            const results = JSON.parse(storedFlights);
+            const mk = String(markup ?? '0');
+            const mkType = String(markupType ?? 'fixed');
+            setFlights((results || []).map((f: any) => withMarkupFlight(f, mk, mkType)));
+
+            // Calculate price range from results
+            if (results.length > 0) {
+              const prices = results
+                .map((f: any) => parsePrice(f?.price))
+                .filter((p: number) => Number.isFinite(p) && p > 0);
+              setPriceRange({ min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) });
+            }
+          }
+          setIsLoading(false);
         }
-        setIsLoading(false);
       }
     };
 
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    const list = [...(flights || []), ...(returnFlights || [])];
+    const prices = list
+      .map((f: any) => parsePrice(f?.price))
+      .filter((p: number) => Number.isFinite(p) && p > 0);
+
+    if (prices.length === 0) return;
+
+    const min = Math.floor(Math.min(...prices));
+    const max = Math.ceil(Math.max(...prices));
+    setPriceBounds({ min, max });
+
+    // Keep a single "max price" control stable when results refresh.
+    // Min is always pinned to the current bounds.min.
+    setPriceRange((prev) => {
+      const nextMax = Math.min(Math.max(Number(prev?.max) || max, min), max);
+      return { min, max: nextMax };
+    });
+  }, [flights, returnFlights]);
 
   // Debug: Log when returnFlights state changes
   useEffect(() => {
@@ -678,7 +891,17 @@ function FlightResultContent() {
         const data = await response.json();
         if (data.success && data.data && data.data.length > 0) {
           console.log(`✅ Loaded ${data.data.length} return flights`);
-          setReturnFlights(data.data);
+          const mk = String(criteria?.markup ?? markup ?? '0');
+          const mkType = String(criteria?.markupType ?? markupType ?? 'fixed');
+          setReturnFlights((data.data || []).map((f: any) => withMarkupFlight(f, mk, mkType)));
+
+          if (data.dictionaries?.carriers) {
+            mergeCarrierNames(data.dictionaries.carriers);
+            localStorage.setItem('flightCarrierNames', JSON.stringify({
+              ...(carrierNames || {}),
+              ...data.dictionaries.carriers,
+            }));
+          }
         } else {
           console.log('No return flights found');
           setReturnFlights([]);
@@ -694,36 +917,49 @@ function FlightResultContent() {
   };
 
 
-  // Extract unique airlines from flights
-  const airlines = [...new Set(flights.map(f => f.logo || f.airline || 'Unknown'))];
-  
-  // Filter and sort flights
-  const filteredFlights = flights.filter(flight => {
-    // Airline filter
-    if (selectedAirlines.length > 0) {
-      const airline = flight.logo || flight.airline;
-      if (!selectedAirlines.includes(airline)) return false;
-    }
-    
-    // Price filter
-    const price = flight.price || 0;
-    if (price < priceRange.min || price > priceRange.max) return false;
-    
-    // Stops filter
-    if (selectedStops.length > 0) {
-      const isDirect = flight.stops === 'Direct' || flight.stops === '0 Stops';
-      if (selectedStops.includes('direct') && !isDirect) return false;
-      if (selectedStops.includes('connecting') && isDirect) return false;
-    }
-    
-    // Cabin type filter
-    if (selectedCabinType.length > 0) {
-      const cabin = flight.class?.toLowerCase() || 'economy';
-      if (!selectedCabinType.some(c => cabin.includes(c.toLowerCase()))) return false;
-    }
-    
-    return true;
-  });
+  const flightsForOptions = [...(flights || []), ...(returnFlights || [])];
+  const airlineCodes = [...new Set(flightsForOptions.map(getCarrierCode).filter(Boolean))].sort();
+  const baggageOptions = [...new Set(flightsForOptions.map(getCheckedBaggageLabel).filter(Boolean) as string[])].sort();
+  const cabinOptions = [...new Set(flightsForOptions.map((f) => f?.class).filter(Boolean) as string[])].sort();
+
+  const filterFlightsList = (list: any[]) => {
+    return (list || []).filter((flight) => {
+      // Airline filter (use carrierCode, not logo URL)
+      if (selectedAirlines.length > 0) {
+        const code = getCarrierCode(flight);
+        if (!code || !selectedAirlines.includes(code)) return false;
+      }
+
+      // Baggage filter
+      if (selectedBaggage.length > 0) {
+        const baggage = getCheckedBaggageLabel(flight);
+        if (!baggage || !selectedBaggage.includes(baggage)) return false;
+      }
+
+      // Price filter
+      const price = parsePrice(flight?.price);
+      if (!Number.isFinite(price)) return false;
+      if (price < priceRange.min || price > priceRange.max) return false;
+
+      // Stops filter
+      if (selectedStops.length > 0) {
+        const isDirect = flight.stops === 'Direct' || flight.stops === '0 Stops';
+        if (selectedStops.includes('direct') && !isDirect) return false;
+        if (selectedStops.includes('connecting') && isDirect) return false;
+      }
+
+      // Cabin type filter
+      if (selectedCabinType.length > 0) {
+        const cabin = flight.class || '';
+        if (!cabin || !selectedCabinType.includes(cabin)) return false;
+      }
+
+      return true;
+    });
+  };
+
+  const filteredFlights = filterFlightsList(flights);
+  const filteredReturnFlights = filterFlightsList(returnFlights);
 
   // Sort flights
   const sortedFlights = [...filteredFlights].sort((a, b) => {
@@ -876,24 +1112,6 @@ function FlightResultContent() {
     return `${hours} H ${minutes} Min.`;
   }
 
-  function getAirlineName(code: string): string {
-    const airlines: { [key: string]: string } = {
-      'EK': 'Emirates',
-      'TK': 'Turkish Airlines',
-      'QR': 'Qatar Airways',
-      'RJ': 'Royal Jordanian',
-      'MS': 'Egyptair',
-      'FZ': 'Flynas',
-      'KU': 'Kuwait Airways',
-      'ME': 'Middle East Airlines',
-      'SV': 'Saudia Arabian Airlines',
-      'HY': 'Uzbekistan Airways',
-      'XY': 'Flynas',
-      'VF': 'AJet',
-    };
-    return airlines[code] || code;
-  }
-
   const toggleFilter = (selected: string[], setSelected: (arr: string[]) => void, value: string) => {
     if (selected.includes(value)) {
       setSelected(selected.filter(item => item !== value));
@@ -918,58 +1136,15 @@ function FlightResultContent() {
               />
               <h1 className="text-2xl font-bold text-gray-800">TRUE TRAVEL</h1>
             </a>
-            <div className="flex items-center space-x-6">
-              {/* User Information */}
-              <div className="flex items-center space-x-4 border-r border-gray-300 pr-6">
-                <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-                  </svg>
-                  <span className="text-sm text-gray-600 font-medium">+964 750 328 2768</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                      9
-                    </div>
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">YP</span>
-                    </div>
-                  </div>
-                  <div className="text-sm">
-                    <p className="font-medium text-gray-800">Younis Pshtiwan</p>
-                    <p className="text-xs text-gray-500">🇬🇧 English (USD)</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="text-sm text-red-500 hover:text-red-600 font-medium transition-colors"
-                >
-                  Logout
-                </button>
-              </div>
-              
-              {/* Time and Settings */}
-              <div className="flex items-center space-x-4">
-                <div className="text-right">
-                  <div className="text-3xl font-light text-gray-800">{formatTime(currentTime)}</div>
-                  <div className="text-sm text-gray-500">{formatDate(currentTime)}</div>
-                </div>
-                <button className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
+            <HeaderUserMenu onLogout={handleLogout} />
           </div>
         </div>
       </header>
 
       {/* Navigation Bar */}
-      <nav className="bg-black shadow-sm relative z-[99999] overflow-visible">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 overflow-visible">
-          <div className="flex items-center space-x-6 py-3 overflow-x-auto overflow-y-visible">
+      <nav className="bg-black shadow-sm sticky top-0 z-[99999]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center space-x-6 py-3">
             <a href="/dashboard" className="flex items-center space-x-2 text-orange-500 hover:text-orange-400 transition-colors whitespace-nowrap">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
@@ -985,7 +1160,7 @@ function FlightResultContent() {
             
             {/* Agency Dropdown */}
             <div 
-              className="relative z-[200]"
+              className="relative z-[999998]"
               onMouseEnter={() => setShowAgencyDropdown(true)}
               onMouseLeave={() => setShowAgencyDropdown(false)}
             >
@@ -1005,36 +1180,36 @@ function FlightResultContent() {
               
               {/* Dropdown Menu */}
               {showAgencyDropdown && (
-                <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
+                <div className="absolute top-full left-0 mt-0 w-56 bg-black rounded-lg shadow-lg py-2 z-[999999] border border-gray-700">
                   <a 
                     href="/agency/agencies" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                   >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
                     </div>
                   </a>
                   <a 
                     href="/agency/sales-representatives" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                   >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                       <span className="font-medium">Sales Representatives</span>
                     </div>
                   </a>
                   <a 
                     href="/agency/customers" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                   >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                       <span className="font-medium">Agency Customers</span>
                     </div>
@@ -1065,14 +1240,14 @@ function FlightResultContent() {
               
               {/* Dropdown Menu */}
               {showProductDropdown && (
-                <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
+                <div className="absolute top-full left-0 mt-0 w-56 bg-black rounded-lg shadow-lg py-2 z-[999999] border border-gray-700">
                   <a 
                     href="/product/offers" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                   >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" />
                       </svg>
                       <span className="font-medium">Offers</span>
                     </div>
@@ -1088,61 +1263,61 @@ function FlightResultContent() {
                         setShowFareRuleSubmenu(true);
                         setFareRuleSubmenuLocked(true);
                       }}
-                      className="flex items-center justify-between px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors cursor-pointer"
+                      className="flex items-center justify-between px-4 py-3 text-white hover:bg-gray-800 transition-colors cursor-pointer"
                     >
-                      <div className="flex items-center space-x-2">
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                      <div className="flex items-center space-x-3">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" />
                         </svg>
                         <span className="font-medium">Fare Rule</span>
                       </div>
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" />
                       </svg>
                     </div>
                     {showFareRuleSubmenu && (
-                      <div className="absolute left-full top-0 -ml-px w-56 bg-white rounded-lg shadow-lg py-2 border border-gray-200">
+                      <div className="absolute left-full top-0 -ml-px w-56 bg-black rounded-lg shadow-lg py-2 border border-gray-700">
                         <a 
                           href="/product/fare-rule/flight-ticket" 
-                          className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                          className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                         >
-                          <div className="flex items-center space-x-2">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                          <div className="flex items-center space-x-3">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                             </svg>
                             <span className="font-medium">Flight Ticket</span>
                           </div>
                         </a>
                         <a 
                           href="/product/fare-rule/hotel" 
-                          className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                          className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                         >
-                          <div className="flex items-center space-x-2">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                          <div className="flex items-center space-x-3">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
                             </svg>
                             <span className="font-medium">Hotel</span>
                           </div>
                         </a>
                         <a 
                           href="/product/fare-rule/rent-a-car" 
-                          className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                          className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                         >
-                          <div className="flex items-center space-x-2">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-                              <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                          <div className="flex items-center space-x-3">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
                             </svg>
                             <span className="font-medium">Rent A Car</span>
                           </div>
                         </a>
                         <a 
                           href="/product/fare-rule/transfer" 
-                          className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                          className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                         >
-                          <div className="flex items-center space-x-2">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                          <div className="flex items-center space-x-3">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" />
                             </svg>
                             <span className="font-medium">Transfer</span>
                           </div>
@@ -1176,81 +1351,60 @@ function FlightResultContent() {
               
               {/* Dropdown Menu */}
               {showReservationsDropdown && (
-                <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
-                  <a 
-                    href="/reservations/all" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                <div className="absolute top-full left-0 mt-0 w-56 bg-black rounded-lg shadow-lg py-2 z-[999999] border border-gray-700">
+                  <a href="/reservations/all" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                       </svg>
                       <span className="font-medium">All Reservations</span>
                     </div>
                   </a>
-                  <a 
-                    href="/reservations/flight-ticket" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                  <a href="/reservations/flight-ticket" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                       </svg>
                       <span className="font-medium">Flight Ticket</span>
                     </div>
                   </a>
-                  <a 
-                    href="/reservations/hotel" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                  <a href="/reservations/hotel" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Hotel</span>
                     </div>
                   </a>
-                  <a 
-                    href="/reservations/transfer" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                  <a href="/reservations/transfer" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                       <span className="font-medium">Transfer</span>
                     </div>
                   </a>
-                  <a 
-                    href="/reservations/rent-a-car" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-                        <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                  <a href="/reservations/rent-a-car" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                       </svg>
                       <span className="font-medium">Rent A Car</span>
                     </div>
                   </a>
-                  <a 
-                    href="/reservations/tour" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                  <a href="/reservations/tour" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 0 1 6 0z" />
                       </svg>
                       <span className="font-medium">Tour</span>
                     </div>
                   </a>
-                  <a 
-                    href="/reservations/visa" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" clipRule="evenodd" />
+                  <a href="/reservations/visa" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
                       </svg>
                       <span className="font-medium">Visa</span>
                     </div>
@@ -1281,10 +1435,10 @@ function FlightResultContent() {
               
               {/* Dropdown Menu */}
               {showFinanceDropdown && (
-                <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
+                <div className="absolute top-full left-0 mt-0 w-56 bg-black rounded-lg shadow-lg py-2 z-[999999] border border-gray-700">
                   <a 
                     href="/finance/agency-accounts" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                   >
                     <div className="flex items-center space-x-2">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -1295,7 +1449,7 @@ function FlightResultContent() {
                   </a>
                   <a 
                     href="/finance/receiving-discharge" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                   >
                     <div className="flex items-center space-x-2">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -1306,7 +1460,7 @@ function FlightResultContent() {
                   </a>
                   <a 
                     href="/finance/virement" 
-                    className="block px-4 py-2 text-gray-800 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
                   >
                     <div className="flex items-center space-x-2">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -1340,36 +1494,36 @@ function FlightResultContent() {
               
               {/* Dropdown Menu */}
               {showReportsDropdown && (
-                <div className="fixed top-[115px] w-56 bg-white rounded-lg shadow-lg py-2 z-[99999] border border-gray-200">
-                  <a href="/reports/flight-ticket/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+                <div className="absolute top-full left-0 mt-0 w-56 bg-black rounded-lg shadow-lg py-2 z-[999999] border border-gray-700">
+                  <a href="/reports/flight-ticket/sales" className="flex items-center px-4 py-3 text-white hover:bg-gray-800 transition-colors">
                     <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                     </svg>
-                    <span>Flight Ticket Sales</span>
+                    <span className="font-medium">Flight Ticket Sales</span>
                   </a>
-                  <a href="/reports/hotel/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+                  <a href="/reports/hotel/sales" className="flex items-center px-4 py-3 text-white hover:bg-gray-800 transition-colors">
                     <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4z"/>
                     </svg>
-                    <span>Hotel Sales</span>
+                    <span className="font-medium">Hotel Sales</span>
                   </a>
-                  <a href="/reports/rent-a-car/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+                  <a href="/reports/rent-a-car/sales" className="flex items-center px-4 py-3 text-white hover:bg-gray-800 transition-colors">
                     <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
                     </svg>
-                    <span>Rent A Car Sales</span>
+                    <span className="font-medium">Rent A Car Sales</span>
                   </a>
-                  <a href="/reports/tour/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+                  <a href="/reports/tour/sales" className="flex items-center px-4 py-3 text-white hover:bg-gray-800 transition-colors">
                     <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                     </svg>
-                    <span>Tour Sales</span>
+                    <span className="font-medium">Tour Sales</span>
                   </a>
-                  <a href="/reports/transfer/sales" className="flex items-center px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+                  <a href="/reports/transfer/sales" className="flex items-center px-4 py-3 text-white hover:bg-gray-800 transition-colors">
                     <svg className="w-4 h-4 mr-3" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
                     </svg>
-                    <span>Transfer Sales</span>
+                    <span className="font-medium">Transfer Sales</span>
                   </a>
                 </div>
               )}
@@ -1406,6 +1560,7 @@ function FlightResultContent() {
                 flightClass,
                 tripType,
                 markup,
+                markupType,
                 isDirect
               }}
               onSearchComplete={() => {
@@ -1451,21 +1606,22 @@ function FlightResultContent() {
                   </svg>
                 </button>
                 <div className="px-4 pb-4">
-                  {airlines.slice(0, 10).map((airline) => (
-                    <label key={airline} className="flex items-center space-x-2 py-2 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded">
+                  {airlineCodes.slice(0, 10).map((carrierCode) => (
+                    <label key={carrierCode} className="flex items-center space-x-2 py-2 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded">
                       <input
                         type="checkbox"
-                        checked={selectedAirlines.includes(airline)}
-                        onChange={() => toggleFilter(selectedAirlines, setSelectedAirlines, airline)}
+                        checked={selectedAirlines.includes(carrierCode)}
+                        onChange={() => toggleFilter(selectedAirlines, setSelectedAirlines, carrierCode)}
                         className="w-4 h-4 text-blue-600 rounded"
                       />
-                      <span className="text-sm text-gray-700">{getAirlineName(airline)}</span>
+                      <span className="text-sm text-gray-700">{getCarrierLabel(carrierCode)}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               {/* Baggage Filter */}
+              {baggageOptions.length > 0 && (
               <div className="border-b border-gray-200">
                 <button className="w-full px-4 py-4 flex items-center justify-between text-left hover:bg-gray-50">
                   <div className="flex items-center space-x-2">
@@ -1479,7 +1635,7 @@ function FlightResultContent() {
                   </svg>
                 </button>
                 <div className="px-4 pb-4">
-                  {['1 PC', '2 PC', '20 KG', '25 KG', '30 KG', 'Hand Bag'].map((bag) => (
+                  {baggageOptions.map((bag) => (
                     <label key={bag} className="flex items-center space-x-2 py-2 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded">
                       <input
                         type="checkbox"
@@ -1492,6 +1648,7 @@ function FlightResultContent() {
                   ))}
                 </div>
               </div>
+              )}
 
               {/* Price Range Filter */}
               <div className="border-b border-gray-200">
@@ -1509,16 +1666,20 @@ function FlightResultContent() {
                 </button>
                 <div className="px-4 pb-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-600">USD {priceRange.min}</span>
+                    <span className="text-sm font-medium text-gray-600">USD {priceBounds.min}</span>
                     <span className="text-sm font-medium text-gray-600">USD {priceRange.max}</span>
                   </div>
                   <input
                     type="range"
-                    min={priceRange.min}
-                    max={priceRange.max}
+                    min={priceBounds.min}
+                    max={priceBounds.max}
                     value={priceRange.max}
-                    onChange={(e) => setPriceRange({ ...priceRange, max: parseInt(e.target.value) })}
-                    className="w-full h-2 bg-orange-500 rounded-lg appearance-none cursor-pointer"
+                    disabled={priceBounds.min === priceBounds.max}
+                    onChange={(e) => {
+                      const nextMax = parseInt(e.target.value);
+                      setPriceRange({ min: priceBounds.min, max: nextMax });
+                    }}
+                    className="w-full h-2 bg-orange-500 rounded-lg appearance-none cursor-pointer disabled:opacity-50 accent-blue-600"
                   />
                 </div>
               </div>
@@ -1554,34 +1715,6 @@ function FlightResultContent() {
                 </div>
               </div>
 
-              {/* Groups Filter */}
-              <div className="border-b border-gray-200">
-                <button className="w-full px-4 py-4 flex items-center justify-between text-left hover:bg-gray-50">
-                  <div className="flex items-center space-x-2">
-                    <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                    </svg>
-                    <span className="font-bold text-gray-900">Groups</span>
-                  </div>
-                  <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-                <div className="px-4 pb-4">
-                  {['OneWay', 'Package'].map((group) => (
-                    <label key={group} className="flex items-center space-x-2 py-2 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded">
-                      <input
-                        type="checkbox"
-                        checked={selectedGroups.includes(group)}
-                        onChange={() => toggleFilter(selectedGroups, setSelectedGroups, group)}
-                        className="w-4 h-4 text-blue-600 rounded"
-                      />
-                      <span className="text-sm text-gray-700">{group}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
               {/* Cabin Type Filter */}
               <div>
                 <button className="w-full px-4 py-4 flex items-center justify-between text-left hover:bg-gray-50">
@@ -1596,7 +1729,7 @@ function FlightResultContent() {
                   </svg>
                 </button>
                 <div className="px-4 pb-4">
-                  {['Business', 'Economy', 'Promotion'].map((cabin) => (
+                  {cabinOptions.map((cabin) => (
                     <label key={cabin} className="flex items-center space-x-2 py-2 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded">
                       <input
                         type="checkbox"
@@ -1694,8 +1827,9 @@ function FlightResultContent() {
             )}
 
             {sortedFlights.map((flight, index) => {
-              // Use transformed data structure
-              const airline = flight.airline || 'Unknown';
+              // Use carrier code to avoid showing logo URLs as airline labels
+              const carrierCode = getCarrierCode(flight);
+              const airline = getCarrierLabel(carrierCode) || flight.airline || 'Unknown';
               const logo = flight.logo || '';
               const flightNumber = flight.flightNumber || '';
               const price = flight.price || 0;
@@ -1713,12 +1847,31 @@ function FlightResultContent() {
               const stops = flight.stops || 'Direct';
               const cabin = flight.class || 'Economy';
               const availability = flight.availability || '';
-              const isSelected = selectedOutboundFlight?.id === flight.id;
+              const flightKey = getFlightKey(flight);
+              const isSelected =
+                Boolean(selectedOutboundFlight) &&
+                (selectedOutboundFlight === flight || getFlightKey(selectedOutboundFlight) === flightKey);
+              const isTripDetailsOpen = Boolean(openTripDetailsByKey[flightKey]);
               
               // Hide non-selected flights when one is selected
               if (selectedOutboundFlight && !isSelected) {
                 return null;
               }
+
+              const offer = flight?.originalOffer;
+              const fareDetails: any[] = Array.isArray(offer?.travelerPricings?.[0]?.fareDetailsBySegment)
+                ? offer.travelerPricings[0].fareDetailsBySegment
+                : [];
+              const bookingClasses = Array.from(
+                new Set(fareDetails.map((fd) => String(fd?.class || '').trim()).filter(Boolean))
+              );
+              const cabinWithBooking = bookingClasses.length > 0 ? `${cabin} (${bookingClasses.join(',')})` : cabin;
+              const seatsLeft =
+                typeof offer?.numberOfBookableSeats === 'number'
+                  ? offer.numberOfBookableSeats
+                  : Number(String(availability).match(/\d+/)?.[0] || '');
+              const baggageLabel = getCheckedBaggageLabel(flight);
+              const offerBadge = String(offer?.pricingOptions?.fareType?.[0] || offer?.source || '').trim();
               
               return (
                 <div key={index}>
@@ -1727,9 +1880,7 @@ function FlightResultContent() {
                       isSelected 
                         ? 'border-4 border-green-500' 
                         : `border-l-4 ${
-                            cabin.toLowerCase().includes('business') ? 'border-purple-500' :
-                            cabin.toLowerCase().includes('promotion') || price < 500 ? 'border-red-400 bg-green-50' :
-                            'border-blue-400'
+                            cabin.toLowerCase().includes('business') ? 'border-purple-500' : 'border-blue-400'
                           }`
                     }`}
                   >
@@ -1742,33 +1893,30 @@ function FlightResultContent() {
                             </svg>
                             <span className="text-green-700 font-bold">Outbound Flight Selected</span>
                           </div>
-                          <button
-                            onClick={() => {
-                              setShowReturnFlights(false);
-                              setSelectedOutboundFlight(null);
-                              setReturnFlights([]);
-                            }}
-                            className="text-sm text-red-600 hover:text-red-800 font-medium"
-                          >
-                            Change Flight
-                          </button>
                         </div>
                       )}
 
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
                         {/* Airline Info */}
-                        <div className="flex items-center space-x-3 md:w-1/5">
+                        <div className="flex items-center space-x-3 md:w-1/5 md:pr-6">
                           <div className="flex items-center space-x-2 sm:space-x-3">
                             {/* Airline Logo */}
                             {logo && (
                               <img 
                                 src={logo} 
                                 alt={airline}
-                                className="w-10 h-10 sm:w-12 sm:h-12 object-contain bg-gray-100 rounded p-1 flex-shrink-0"
+                                className="w-10 h-10 sm:w-12 sm:h-12 object-contain bg-transparent flex-shrink-0"
                                 onError={(e) => {
-                                  // Hide if logo fails to load
-                                  e.currentTarget.style.display = 'none';
-                                  console.warn(`Failed to load logo for ${airline}: ${logo}`);
+                                  const img = e.currentTarget;
+                                  const current = img.src || '';
+                                  // Fallback to previous CDN if primary fails
+                                  if (!current.includes('images.kiwi.com')) {
+                                    const fallback = `https://images.kiwi.com/airlines/64/${carrierCode}.png`;
+                                    img.src = fallback;
+                                    return;
+                                  }
+                                  img.style.display = 'none';
+                                  console.warn(`Failed to load logo for ${airline}: ${current}`);
                                 }}
                                 onLoad={() => {
                                   console.log(`✅ Logo loaded for ${airline}: ${logo}`);
@@ -1783,7 +1931,7 @@ function FlightResultContent() {
                         </div>
 
                         {/* Flight Times */}
-                        <div className="flex items-center justify-between md:space-x-4 lg:space-x-8 flex-1">
+                        <div className="flex items-center justify-between md:space-x-4 lg:space-x-8 flex-1 md:pl-4">
                           <div className="text-center">
                             <div className="flex flex-col sm:flex-row items-center sm:space-x-2">
                               <svg className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 mb-1 sm:mb-0" fill="currentColor" viewBox="0 0 24 24">
@@ -1796,15 +1944,18 @@ function FlightResultContent() {
                           </div>
 
                           <div className="flex-1 text-center">
-                            <div className="relative px-2 sm:px-4">
-                              <div className="h-0.5 sm:h-1 bg-green-500 rounded-full"></div>
-                              <div className="absolute -top-2 sm:-top-3 left-1/2 transform -translate-x-1/2">
-                                <svg className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                                </svg>
-                              </div>
+                            <div className="relative px-4 sm:px-6">
+                              <div className="h-0.5 sm:h-1 bg-blue-300 rounded-full"></div>
+                              <button
+                                type="button"
+                                aria-label="Toggle trip details"
+                                onClick={() => toggleTripDetails(flight)}
+                                className="absolute -top-2 sm:-top-3 left-1/2 transform -translate-x-1/2 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-blue-600 bg-white shadow-sm flex items-center justify-center"
+                              >
+                                <span className={`block w-2 h-2 rounded-full ${isTripDetailsOpen ? 'bg-blue-600' : 'bg-transparent'}`}></span>
+                              </button>
                             </div>
-                            <div className="text-xs sm:text-sm text-gray-600 mt-2">{formatDuration(duration)}</div>
+                            <div className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">{formatDuration(duration)}</div>
                           </div>
 
                           <div className="text-center">
@@ -1825,74 +1976,185 @@ function FlightResultContent() {
                             {price.toFixed(2)} <span className="text-sm sm:text-base md:text-lg">USD</span>
                           </div>
                           <button 
-                            onClick={() => handleSelectFlight(flight)}
-                            disabled={isLoading || isSelected}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedOutboundFlight(null);
+                                setSelectedReturnFlight(null);
+                                setShowReturnFlights(false);
+                                setReturnFlights([]);
+                                return;
+                              }
+                              handleSelectFlight(flight);
+                            }}
+                            disabled={isLoading}
                             className={`w-full px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-bold transition-colors text-sm sm:text-base ${
                               isSelected 
-                                ? 'bg-green-600 text-white cursor-default' 
+                                ? 'bg-red-600 hover:bg-red-700 text-white' 
                                 : 'bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 disabled:cursor-not-allowed'
                             }`}
                           >
-                            {isSelected ? '✓ Selected' : 'Select'}
+                            {isSelected ? 'Remove' : 'Select'}
                           </button>
                         </div>
                       </div>
 
                       {/* Flight Details Tags */}
                       <div className="flex flex-wrap items-center gap-2 mt-4">
-                      {cabin.toLowerCase().includes('promotion') || price < 500 ? (
+                        <span className={`text-white px-3 py-1 rounded-full text-xs font-medium flex items-center ${cabin.toLowerCase().includes('business') ? 'bg-purple-600' : 'bg-blue-600'}`}>
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          {cabinWithBooking}
+                        </span>
+
+                        {Number.isFinite(seatsLeft) && seatsLeft > 0 && (
+                          <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M6 3a2 2 0 00-2 2v8a2 2 0 002 2h1v2a1 1 0 102 0v-2h2v2a1 1 0 102 0v-2h1a2 2 0 002-2V5a2 2 0 00-2-2H6zm0 2h8v8H6V5z" />
+                            </svg>
+                            {seatsLeft}
+                          </span>
+                        )}
+
                         <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
                           <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+                            <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" />
                           </svg>
-                          Promotion (M)
+                          {stops}
                         </span>
-                      ) : cabin.toLowerCase().includes('business') ? (
+
                         <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
-                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M17 6h-2V3c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v3H7c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2 0 .55.45 1 1 1s1-.45 1-1h6c0 .55.45 1 1 1s1-.45 1-1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM9.5 18H8V9h1.5v9zm3.25 0h-1.5V9h1.5v9zm.75-12h-3V3.5h3V6zM16 18h-1.5V9H16v9z"/>
                           </svg>
-                          Business (D,D)
+                          Hand Bag{baggageLabel ? ` • ${baggageLabel}` : ''}
                         </span>
-                      ) : (
-                        <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
-                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+
+                        {offerBadge && (
+                          <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                            <span className="font-extrabold mr-1">+</span>
+                            {offerBadge}
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => toggleTripDetails(flight)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs font-semibold flex items-center"
+                        >
+                          Trip Details
+                          <svg className={`w-4 h-4 ml-1 transition-transform ${isTripDetailsOpen ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                           </svg>
-                          {cabin} (H,H)
-                        </span>
-                      )}
-                      
-                      <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" />
-                        </svg>
-                        {stops}
-                      </span>
+                        </button>
+                      </div>
 
-                      <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M17 6h-2V3c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v3H7c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2 0 .55.45 1 1 1s1-.45 1-1h6c0 .55.45 1 1 1s1-.45 1-1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM9.5 18H8V9h1.5v9zm3.25 0h-1.5V9h1.5v9zm.75-12h-3V3.5h3V6zM16 18h-1.5V9H16v9z"/>
-                        </svg>
-                        1 PC
-                      </span>
+                      {/* Trip Details (hidden until opened) */}
+                      {isTripDetailsOpen && (
+                        <div className="mt-4 rounded-lg border border-blue-200 bg-slate-50 overflow-hidden">
+                          {getSegments(flight).length === 0 ? (
+                            <div className="p-4 text-sm text-gray-600">No additional details available for this offer.</div>
+                          ) : (
+                            <div className="divide-y divide-blue-100">
+                              {getSegments(flight).map((seg: any, segIndex: number) => {
+                                const segCarrier = String(seg?.carrierCode || carrierCode || '').trim();
+                                const segNumber = seg?.number ? `${segCarrier}${String(seg.number)}` : '';
+                                const depAt = String(seg?.departure?.at || '');
+                                const arrAt = String(seg?.arrival?.at || '');
+                                const depCode = String(seg?.departure?.iataCode || '');
+                                const arrCode = String(seg?.arrival?.iataCode || '');
 
-                      {price < 500 && (
-                        <>
-                          <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-medium">
-                            + Offer
-                          </span>
-                          <span className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
-                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
-                            </svg>
-                            Special Offer
-                          </span>
-                        </>
+                                const segDurationLabel = seg?.duration
+                                  ? formatIsoDurationToPretty(String(seg.duration))
+                                  : formatMinutes(minutesBetween(depAt, arrAt));
+
+                                const nextSeg = getSegments(flight)[segIndex + 1];
+                                const hasNext = Boolean(nextSeg);
+                                const layoverMinutes = hasNext
+                                  ? minutesBetween(String(seg?.arrival?.at || ''), String(nextSeg?.departure?.at || ''))
+                                  : 0;
+
+                                return (
+                                  <div key={`${flightKey}-seg-${segIndex}`} className="bg-white">
+                                    <div className="p-4">
+                                      <div className="grid grid-cols-12 gap-4 items-start">
+                                        <div className="col-span-12 sm:col-span-3 flex items-center gap-3">
+                                          {logo ? (
+                                            <img
+                                              src={logo}
+                                              alt={airline}
+                                              className="w-12 h-12 object-contain bg-gray-100 rounded p-1 flex-shrink-0"
+                                              onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                              }}
+                                            />
+                                          ) : null}
+                                          <div>
+                                            <div className="font-bold text-gray-900">
+                                              {getCarrierLabel(segCarrier) || segCarrier || airline}
+                                            </div>
+                                            <div className="text-xs text-gray-600">{segNumber}</div>
+                                          </div>
+                                        </div>
+
+                                        <div className="col-span-12 sm:col-span-6">
+                                          <div className="space-y-3">
+                                            <div className="flex items-start gap-3">
+                                              <svg className="w-4 h-4 mt-0.5 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+                                              </svg>
+                                              <div>
+                                                <div className="text-sm font-extrabold text-gray-900">
+                                                  {formatTimeHM(depAt)}{' '}
+                                                  <span className="text-xs font-semibold text-gray-700">{formatDateDMY(depAt)}</span> -{' '}
+                                                  {getLocationLabel(depCode)}
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div className="flex items-start gap-3">
+                                              <span className="mt-1 inline-block w-3 h-3 rounded-full bg-orange-500 flex-shrink-0" />
+                                              <div>
+                                                <div className="text-sm font-extrabold text-gray-900">
+                                                  {formatTimeHM(arrAt)}{' '}
+                                                  <span className="text-xs font-semibold text-gray-700">{formatDateDMY(arrAt)}</span> -{' '}
+                                                  {getLocationLabel(arrCode)}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="col-span-12 sm:col-span-2 text-sm">
+                                          <div className="font-semibold text-gray-900">Süre</div>
+                                          <div className="text-gray-700">{segDurationLabel}</div>
+                                        </div>
+
+                                        <div className="col-span-12 sm:col-span-1 text-sm flex sm:justify-end">
+                                          <div className="flex items-center gap-2 sm:flex-col sm:items-end">
+                                            <svg className="w-5 h-5 text-purple-700" fill="currentColor" viewBox="0 0 24 24">
+                                              <path d="M17 6h-2V3c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v3H7c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2 0 .55.45 1 1 1s1-.45 1-1h6c0 .55.45 1 1 1s1-.45 1-1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM9.5 18H8V9h1.5v9zm3.25 0h-1.5V9h1.5v9zm.75-12h-3V3.5h3V6zM16 18h-1.5V9H16v9z" />
+                                            </svg>
+                                            <div className="text-xs font-semibold text-gray-700">Hand Bag</div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {hasNext && (
+                                        <div className="mt-4">
+                                          <div className="border border-blue-200 bg-slate-50 rounded-lg text-center text-sm text-gray-800 py-2">
+                                            <span className="font-semibold">Waiting Time:</span> {formatMinutes(layoverMinutes)}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       )}
-                    </div>
 
                     {/* Availability */}
                     {availability && (
@@ -1953,8 +2215,9 @@ function FlightResultContent() {
                     )}
 
                     {/* Return Flight Cards */}
-                    {returnFlights.map((returnFlight, returnIndex) => {
-                      const airline = returnFlight.airline || 'Unknown';
+                    {filteredReturnFlights.map((returnFlight, returnIndex) => {
+                      const returnCarrierCode = getCarrierCode(returnFlight);
+                      const airline = getCarrierLabel(returnCarrierCode) || returnFlight.airline || 'Unknown';
                       console.log(`🎨 Rendering return flight #${returnIndex}: ${airline} (${returnFlight.logo}) - $${returnFlight.price}`);
                       const flightNumber = returnFlight.flightNumber || '';
                       const price = returnFlight.price || 0;
@@ -1967,8 +2230,27 @@ function FlightResultContent() {
                       const cabin = returnFlight.class || 'Economy';
                       const outboundPrice = selectedOutboundFlight?.price || 0;
                       const totalPrice = outboundPrice + price;
-                      const isReturnSelected = selectedReturnFlight?.id === returnFlight.id;
-                      const isSameAirline = airline === selectedOutboundFlight?.airline || returnFlight.logo === selectedOutboundFlight?.logo;
+                      const isReturnSelected =
+                        Boolean(selectedReturnFlight) &&
+                        (selectedReturnFlight === returnFlight || getFlightKey(selectedReturnFlight) === getFlightKey(returnFlight));
+                      const returnFlightKey = getFlightKey(returnFlight);
+                      const isReturnTripDetailsOpen = Boolean(openTripDetailsByKey[returnFlightKey]);
+                      const isSameAirline = returnCarrierCode && returnCarrierCode === getCarrierCode(selectedOutboundFlight);
+
+                      const offer = returnFlight?.originalOffer;
+                      const fareDetails: any[] = Array.isArray(offer?.travelerPricings?.[0]?.fareDetailsBySegment)
+                        ? offer.travelerPricings[0].fareDetailsBySegment
+                        : [];
+                      const bookingClasses = Array.from(
+                        new Set(fareDetails.map((fd) => String(fd?.class || '').trim()).filter(Boolean))
+                      );
+                      const cabinWithBooking = bookingClasses.length > 0 ? `${cabin} (${bookingClasses.join(',')})` : cabin;
+                      const seatsLeft =
+                        typeof offer?.numberOfBookableSeats === 'number'
+                          ? offer.numberOfBookableSeats
+                          : Number(String(returnFlight?.availability || '').match(/\d+/)?.[0] || '');
+                      const baggageLabel = getCheckedBaggageLabel(returnFlight);
+                      const offerBadge = String(offer?.pricingOptions?.fareType?.[0] || offer?.source || '').trim();
 
                       // Hide non-selected return flights when one is selected
                       if (selectedReturnFlight && !isReturnSelected) {
@@ -1985,15 +2267,22 @@ function FlightResultContent() {
                           <div className="p-3 sm:p-4 md:p-5">
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
                               {/* Airline Info */}
-                              <div className="flex items-center space-x-3 md:w-1/6">
+                              <div className="flex items-center space-x-3 md:w-1/6 md:pr-6">
                                 <div className="flex items-center space-x-2 sm:space-x-3">
                                   {/* Airline Logo */}
                                   <img 
                                     src={returnFlight.logo} 
                                     alt={airline}
-                                    className="w-10 h-10 sm:w-12 sm:h-12 object-contain bg-gray-100 rounded p-1 flex-shrink-0"
+                                    className="w-10 h-10 sm:w-12 sm:h-12 object-contain bg-transparent flex-shrink-0"
                                     onError={(e) => {
-                                      e.currentTarget.style.display = 'none';
+                                      const img = e.currentTarget;
+                                      const current = img.src || '';
+                                      if (!current.includes('images.kiwi.com')) {
+                                        const fallback = `https://images.kiwi.com/airlines/64/${returnCarrierCode}.png`;
+                                        img.src = fallback;
+                                        return;
+                                      }
+                                      img.style.display = 'none';
                                     }}
                                   />
                                   <div className="text-left">
@@ -2009,7 +2298,7 @@ function FlightResultContent() {
                               </div>
 
                               {/* Flight Times */}
-                              <div className="flex items-center justify-between md:space-x-4 lg:space-x-6 flex-1">
+                              <div className="flex items-center justify-between md:space-x-4 lg:space-x-6 flex-1 md:pl-4">
                                 <div className="text-center">
                                   <div className="flex flex-col sm:flex-row items-center sm:space-x-1">
                                     <svg className="w-4 h-4 text-blue-500 mb-1 sm:mb-0" fill="currentColor" viewBox="0 0 24 24">
@@ -2023,7 +2312,15 @@ function FlightResultContent() {
 
                                 <div className="flex-1 text-center">
                                   <div className="relative px-2 sm:px-4">
-                                    <div className="h-0.5 bg-blue-400 rounded-full"></div>
+                                    <div className="h-0.5 bg-blue-300 rounded-full"></div>
+                                    <button
+                                      type="button"
+                                      aria-label="Toggle trip details"
+                                      onClick={() => toggleTripDetails(returnFlight)}
+                                      className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-5 h-5 rounded-full border-2 border-blue-600 bg-white shadow-sm flex items-center justify-center"
+                                    >
+                                      <span className={`block w-2 h-2 rounded-full ${isReturnTripDetailsOpen ? 'bg-blue-600' : 'bg-transparent'}`}></span>
+                                    </button>
                                   </div>
                                   <div className="text-xs text-gray-600 mt-1">{formatDuration(duration)} | {stops}</div>
                                 </div>
@@ -2047,18 +2344,165 @@ function FlightResultContent() {
                                 </div>
                                 <div className="text-xs text-gray-500 mb-2">Return Flight</div>
                                 <button 
-                                  onClick={() => handleSelectFlight(returnFlight)}
-                                  disabled={isLoading || isReturnSelected}
+                                  onClick={() => {
+                                    if (isReturnSelected) {
+                                      setSelectedReturnFlight(null);
+                                      return;
+                                    }
+                                    handleSelectFlight(returnFlight);
+                                  }}
+                                  disabled={isLoading}
                                   className={`w-full px-4 sm:px-6 py-2 rounded-lg font-bold text-sm transition-colors ${
                                     isReturnSelected 
-                                      ? 'bg-green-600 text-white cursor-default' 
+                                      ? 'bg-red-600 hover:bg-red-700 text-white' 
                                       : 'bg-green-600 hover:bg-green-700 text-white disabled:opacity-50'
                                   }`}
                                 >
-                                  {isReturnSelected ? '✓ Selected' : 'Select Return'}
+                                  {isReturnSelected ? 'Remove' : 'Select Return'}
                                 </button>
                               </div>
                             </div>
+
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <span className={`text-white px-3 py-1 rounded-full text-xs font-medium flex items-center ${cabin.toLowerCase().includes('business') ? 'bg-purple-600' : 'bg-blue-600'}`}>
+                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                  <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                {cabinWithBooking}
+                              </span>
+
+                              {Number.isFinite(seatsLeft) && seatsLeft > 0 && (
+                                <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M6 3a2 2 0 00-2 2v8a2 2 0 002 2h1v2a1 1 0 102 0v-2h2v2a1 1 0 102 0v-2h1a2 2 0 002-2V5a2 2 0 00-2-2H6zm0 2h8v8H6V5z" />
+                                  </svg>
+                                  {seatsLeft}
+                                </span>
+                              )}
+
+                              <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M17 6h-2V3c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v3H7c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2 0 .55.45 1 1 1s1-.45 1-1h6c0 .55.45 1 1 1s1-.45 1-1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM9.5 18H8V9h1.5v9zm3.25 0h-1.5V9h1.5v9zm.75-12h-3V3.5h3V6zM16 18h-1.5V9H16v9z"/>
+                                </svg>
+                                Hand Bag{baggageLabel ? ` • ${baggageLabel}` : ''}
+                              </span>
+
+                              {offerBadge && (
+                                <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                                  <span className="font-extrabold mr-1">+</span>
+                                  {offerBadge}
+                                </span>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => toggleTripDetails(returnFlight)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs font-semibold flex items-center"
+                              >
+                                Trip Details
+                                <svg className={`w-4 h-4 ml-1 transition-transform ${isReturnTripDetailsOpen ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                </svg>
+                              </button>
+                            </div>
+
+                            {/* Trip Details (hidden until opened) */}
+                            {isReturnTripDetailsOpen && (
+                              <div className="mt-4 rounded-lg border border-blue-200 bg-slate-50 overflow-hidden">
+                                {getSegments(returnFlight).length === 0 ? (
+                                  <div className="p-4 text-sm text-gray-600">No additional details available for this offer.</div>
+                                ) : (
+                                  <div className="divide-y divide-blue-100">
+                                    {getSegments(returnFlight).map((seg: any, segIndex: number) => {
+                                      const segCarrier = String(seg?.carrierCode || returnCarrierCode || '').trim();
+                                      const segNumber = seg?.number ? `${segCarrier}${String(seg.number)}` : '';
+                                      const depAt = String(seg?.departure?.at || '');
+                                      const arrAt = String(seg?.arrival?.at || '');
+                                      const depCode = String(seg?.departure?.iataCode || '');
+                                      const arrCode = String(seg?.arrival?.iataCode || '');
+
+                                      const segDurationLabel = seg?.duration ? formatIsoDurationToPretty(String(seg.duration)) : formatMinutes(minutesBetween(depAt, arrAt));
+                                      const nextSeg = getSegments(returnFlight)[segIndex + 1];
+                                      const hasNext = Boolean(nextSeg);
+                                      const layoverMinutes = hasNext
+                                        ? minutesBetween(String(seg?.arrival?.at || ''), String(nextSeg?.departure?.at || ''))
+                                        : 0;
+
+                                      return (
+                                        <div key={`${returnFlightKey}-seg-${segIndex}`} className="bg-white">
+                                          <div className="p-4">
+                                            <div className="grid grid-cols-12 gap-4 items-start">
+                                              <div className="col-span-12 sm:col-span-3 flex items-center gap-3">
+                                                {returnFlight.logo ? (
+                                                  <img
+                                                    src={returnFlight.logo}
+                                                    alt={airline}
+                                                    className="w-12 h-12 object-contain bg-gray-100 rounded p-1 flex-shrink-0"
+                                                    onError={(e) => {
+                                                      e.currentTarget.style.display = 'none';
+                                                    }}
+                                                  />
+                                                ) : null}
+                                                <div>
+                                                  <div className="font-bold text-gray-900">{getCarrierLabel(segCarrier) || segCarrier || airline}</div>
+                                                  <div className="text-xs text-gray-600">{segNumber}</div>
+                                                </div>
+                                              </div>
+
+                                              <div className="col-span-12 sm:col-span-6">
+                                                <div className="space-y-3">
+                                                  <div className="flex items-start gap-3">
+                                                    <svg className="w-4 h-4 mt-0.5 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                                                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                                                    </svg>
+                                                    <div>
+                                                      <div className="text-sm font-extrabold text-gray-900">
+                                                        {formatTimeHM(depAt)} <span className="text-xs font-semibold text-gray-700">{formatDateDMY(depAt)}</span> - {getLocationLabel(depCode)}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                  <div className="flex items-start gap-3">
+                                                    <span className="mt-1 inline-block w-3 h-3 rounded-full bg-orange-500 flex-shrink-0" />
+                                                    <div>
+                                                      <div className="text-sm font-extrabold text-gray-900">
+                                                        {formatTimeHM(arrAt)} <span className="text-xs font-semibold text-gray-700">{formatDateDMY(arrAt)}</span> - {getLocationLabel(arrCode)}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              </div>
+
+                                              <div className="col-span-12 sm:col-span-2 text-sm">
+                                                <div className="font-semibold text-gray-900">Süre</div>
+                                                <div className="text-gray-700">{segDurationLabel}</div>
+                                              </div>
+
+                                              <div className="col-span-12 sm:col-span-1 text-sm flex sm:justify-end">
+                                                <div className="flex items-center gap-2 sm:flex-col sm:items-end">
+                                                  <svg className="w-5 h-5 text-purple-700" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M17 6h-2V3c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v3H7c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2 0 .55.45 1 1 1s1-.45 1-1h6c0 .55.45 1 1 1s1-.45 1-1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM9.5 18H8V9h1.5v9zm3.25 0h-1.5V9h1.5v9zm.75-12h-3V3.5h3V6zM16 18h-1.5V9H16v9z"/>
+                                                  </svg>
+                                                  <div className="text-xs font-semibold text-gray-700">Hand Bag</div>
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            {hasNext && (
+                                              <div className="mt-4">
+                                                <div className="border border-blue-200 bg-slate-50 rounded-lg text-center text-sm text-gray-800 py-2">
+                                                  <span className="font-semibold">Waiting Time:</span> {formatMinutes(layoverMinutes)}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -2106,6 +2550,39 @@ function FlightResultContent() {
             );
             })}
 
+            {/* One-way Total + BUY NOW (shown after selecting outbound) */}
+            {selectedOutboundFlight && searchCriteria.tripType !== 'Roundtrip' && (
+              <div className="mt-6 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-500 rounded-lg p-4 sm:p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+                  <div className="flex-1">
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Your Trip</h3>
+                    <div className="text-xs sm:text-sm text-gray-700 space-y-1">
+                      <div className="flex items-start sm:items-center">
+                        <svg className="w-4 h-4 text-green-600 mr-2 mt-0.5 sm:mt-0 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="break-words">
+                          <strong>Flight:</strong> {selectedOutboundFlight.departure.airport} → {selectedOutboundFlight.arrival.airport} - ${selectedOutboundFlight.price.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-center lg:text-right lg:ml-6 border-t lg:border-t-0 lg:border-l-2 border-green-300 pt-4 lg:pt-0 lg:pl-6">
+                    <div className="text-xs sm:text-sm text-gray-600 mb-1">Total Amount</div>
+                    <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-green-600 mb-3 sm:mb-4">
+                      ${selectedOutboundFlight.price.toFixed(2)}
+                    </div>
+                    <button
+                      onClick={handleBuyNow}
+                      className="w-full lg:w-auto bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-8 sm:px-10 md:px-12 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
+                    >
+                      BUY NOW
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Return Flights Header (after departure flights end) */}
             {searchCriteria.tripType === 'Roundtrip' && searchCriteria.returnDate && sortedFlights.length > 0 && !selectedOutboundFlight && returnFlights.length > 0 && (
               <div className="mt-6 sm:mt-8 mb-4">
@@ -2143,8 +2620,9 @@ function FlightResultContent() {
                 </div>
 
                 {/* Return Flight Cards */}
-                {returnFlights.map((flight, index) => {
-                  const airline = flight.airline || 'Unknown';
+                {filteredReturnFlights.map((flight, index) => {
+                  const code = getCarrierCode(flight);
+                  const airline = getCarrierLabel(code) || flight.airline || 'Unknown';
                   const flightNumber = flight.flightNumber || '';
                   const price = flight.price || 0;
                   const departureTime = flight.departure?.time || '';
@@ -2259,7 +2737,7 @@ function FlightResultContent() {
           <div className="bg-white rounded-xl shadow-2xl max-w-full sm:max-w-6xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center z-10">
-              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Select Flight Class</h2>
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Confirm Booking</h2>
               <button
                 onClick={() => setShowBookingModal(false)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -2270,203 +2748,69 @@ function FlightResultContent() {
               </button>
             </div>
 
-            {isLoadingClasses ? (
-              <div className="flex items-center justify-center py-12 sm:py-20">
-                <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-500"></div>
-              </div>
-            ) : (
-              <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
-                {/* Outbound Flight Classes */}
-                <div>
-                  <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 sm:px-6 py-3 rounded-t-lg flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                    <div>
-                      <h3 className="text-base sm:text-lg md:text-xl font-bold">{selectedOutboundFlight?.airline}</h3>
-                      <p className="text-xs sm:text-sm opacity-90 break-words">
-                        {selectedOutboundFlight?.departure?.airport} {selectedOutboundFlight?.departure?.time} → {selectedOutboundFlight?.arrival?.airport} {selectedOutboundFlight?.arrival?.time}
-                      </p>
-                    </div>
-                    <div className="text-left sm:text-right">
-                      <p className="text-xs opacity-75">Departure</p>
-                      <p className="text-sm sm:text-base md:text-lg font-semibold">{selectedOutboundFlight?.departure?.date || searchCriteria.departureDate}</p>
-                    </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="text-xs text-gray-500 mb-2">Outbound</div>
+                  <div className="font-semibold text-gray-900 mb-1">{selectedOutboundFlight?.departure?.airport} → {selectedOutboundFlight?.arrival?.airport}</div>
+                  <div className="text-sm text-gray-700 mb-2">{selectedOutboundFlight?.departure?.time} - {selectedOutboundFlight?.arrival?.time}</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-medium">{selectedOutboundFlight?.class}</span>
+                    {getCheckedBaggageLabel(selectedOutboundFlight) && (
+                      <span className="bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-medium">{getCheckedBaggageLabel(selectedOutboundFlight)}</span>
+                    )}
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-4">
-                    {bookingFlightClasses.outbound?.map((classOption: any, index: number) => {
-                      const isSelected = selectedOutboundClass?.name === classOption.name;
-                      return (
-                        <div
-                          key={`outbound-${index}`}
-                          className={`rounded-lg shadow-md overflow-hidden border-2 transition-all ${
-                            isSelected ? 'border-green-500 shadow-lg' : 'border-gray-200'
-                          }`}
-                        >
-                          <div className={`p-4 border-l-4 ${
-                            index === 0 ? 'border-yellow-400' : index === 1 ? 'border-orange-400' : 'border-pink-400'
-                          }`}>
-                            <h4 className="text-lg font-bold text-gray-800 mb-3">{classOption.name}</h4>
-                            
-                            <div className="space-y-2 mb-4">
-                              {classOption.features.map((feature: any, fIndex: number) => (
-                                <div key={fIndex} className="flex items-start space-x-2 text-sm">
-                                  {feature.available ? (
-                                    <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  ) : (
-                                    <span className={`flex-shrink-0 mt-0.5 ${feature.cost ? 'text-purple-600' : 'text-gray-400'}`}>
-                                      {feature.cost ? '$' : '✕'}
-                                    </span>
-                                  )}
-                                  <span className={feature.available ? 'text-gray-700' : feature.cost ? 'text-purple-600' : 'text-gray-400'}>
-                                    {feature.text}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="border-t pt-3 mt-3">
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="text-xl sm:text-2xl font-bold text-gray-900">{classOption.price.toFixed(2)}</span>
-                                <span className="text-xs sm:text-sm text-gray-500">USD</span>
-                              </div>
-                              <button
-                                onClick={() => setSelectedOutboundClass(classOption)}
-                                className={`w-full py-2 px-4 rounded-lg font-semibold text-sm sm:text-base transition-all ${
-                                  isSelected
-                                    ? 'bg-green-600 text-white cursor-default'
-                                    : 'bg-gray-500 hover:bg-gray-600 text-white'
-                                }`}
-                              >
-                                {isSelected ? 'Selected' : 'Select'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <div className="mt-3 text-right font-bold text-gray-900">${(selectedOutboundFlight?.price || 0).toFixed(2)}</div>
                 </div>
 
-                {/* Return Flight Classes */}
-                <div>
-                  <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 sm:px-6 py-3 rounded-t-lg flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                    <div>
-                      <h3 className="text-base sm:text-lg md:text-xl font-bold">{selectedReturnFlight?.airline}</h3>
-                      <p className="text-xs sm:text-sm opacity-90 break-words">
-                        {selectedReturnFlight?.departure?.airport} {selectedReturnFlight?.departure?.time} → {selectedReturnFlight?.arrival?.airport} {selectedReturnFlight?.arrival?.time}
-                      </p>
-                    </div>
-                    <div className="text-left sm:text-right">
-                      <p className="text-xs opacity-75">Return</p>
-                      <p className="text-sm sm:text-base md:text-lg font-semibold">{selectedReturnFlight?.departure?.date || searchCriteria.returnDate}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-4">
-                    {bookingFlightClasses.return?.map((classOption: any, index: number) => {
-                      const isSelected = selectedReturnClass?.name === classOption.name;
-                      return (
-                        <div
-                          key={`return-${index}`}
-                          className={`rounded-lg shadow-md overflow-hidden border-2 transition-all ${
-                            isSelected ? 'border-green-500 shadow-lg' : 'border-gray-200'
-                          }`}
-                        >
-                          <div className={`p-3 sm:p-4 border-l-4 ${
-                            index === 0 ? 'border-yellow-400' : index === 1 ? 'border-orange-400' : 'border-pink-400'
-                          }`}>
-                            <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-3">{classOption.name}</h4>
-                            
-                            <div className="space-y-2 mb-4">
-                              {classOption.features.map((feature: any, fIndex: number) => (
-                                <div key={fIndex} className="flex items-start space-x-2 text-xs sm:text-sm">
-                                  {feature.available ? (
-                                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  ) : (
-                                    <span className={`flex-shrink-0 mt-0.5 ${feature.cost ? 'text-purple-600' : 'text-gray-400'}`}>
-                                      {feature.cost ? '$' : '✕'}
-                                    </span>
-                                  )}
-                                  <span className={feature.available ? 'text-gray-700' : feature.cost ? 'text-purple-600' : 'text-gray-400'}>
-                                    {feature.text}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="border-t pt-3 mt-3">
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="text-xl sm:text-2xl font-bold text-gray-900">{classOption.price.toFixed(2)}</span>
-                                <span className="text-xs sm:text-sm text-gray-500">USD</span>
-                              </div>
-                              <button
-                                onClick={() => setSelectedReturnClass(classOption)}
-                                className={`w-full py-2 px-4 rounded-lg font-semibold text-sm sm:text-base transition-all ${
-                                  isSelected
-                                    ? 'bg-green-600 text-white cursor-default'
-                                    : 'bg-gray-500 hover:bg-gray-600 text-white'
-                                }`}
-                              >
-                                {isSelected ? 'Selected' : 'Select'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Total and Continue Button */}
-                <div className="border-t pt-4 sm:pt-6 sticky bottom-0 bg-white">
-                  <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-                    <div className="text-center">
-                      <p className="text-xs sm:text-sm text-gray-600 mb-1">Total</p>
-                      <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900">
-                        {((selectedOutboundClass?.price || 0) + (selectedReturnClass?.price || 0)).toFixed(2)}
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-500">USD</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        // Save booking data to localStorage
-                        const bookingData = {
-                          outbound: selectedOutboundFlight,
-                          outboundClass: selectedOutboundClass,
-                          return: selectedReturnFlight,
-                          returnClass: selectedReturnClass,
-                          total: (selectedOutboundClass?.price || 0) + (selectedReturnClass?.price || 0),
-                          searchCriteria: searchCriteria
-                        };
-                        localStorage.setItem('bookingData', JSON.stringify(bookingData));
-                        
-                        // Navigate to booking page
-                        router.push('/booking');
-                      }}
-                      className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-8 sm:px-10 md:px-12 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg transition-all shadow-lg"
-                    >
-                      Continue
-                    </button>
-                  </div>
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="text-xs text-gray-500 mb-2">Return</div>
+                  {selectedReturnFlight ? (
+                    <>
+                      <div className="font-semibold text-gray-900 mb-1">{selectedReturnFlight?.departure?.airport} → {selectedReturnFlight?.arrival?.airport}</div>
+                      <div className="text-sm text-gray-700 mb-2">{selectedReturnFlight?.departure?.time} - {selectedReturnFlight?.arrival?.time}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-medium">{selectedReturnFlight?.class}</span>
+                        {getCheckedBaggageLabel(selectedReturnFlight) && (
+                          <span className="bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-medium">{getCheckedBaggageLabel(selectedReturnFlight)}</span>
+                        )}
+                      </div>
+                      <div className="mt-3 text-right font-bold text-gray-900">${(selectedReturnFlight?.price || 0).toFixed(2)}</div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-gray-600">One-way booking</div>
+                  )}
                 </div>
               </div>
-            )}
+
+              <div className="border-t pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-center sm:text-left">
+                  <div className="text-xs text-gray-600">Total</div>
+                  <div className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    ${(((selectedOutboundFlight?.price || 0) + (selectedReturnFlight?.price || 0))).toFixed(2)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    const total = (selectedOutboundFlight?.price || 0) + (selectedReturnFlight?.price || 0);
+                    const bookingData = {
+                      outbound: selectedOutboundFlight,
+                      return: selectedReturnFlight,
+                      total,
+                      searchCriteria,
+                    };
+                    localStorage.setItem('bookingData', JSON.stringify(bookingData));
+                    router.push('/booking');
+                  }}
+                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-8 sm:px-10 md:px-12 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg transition-all shadow-lg"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Back to Top Button */}
-      <button
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 bg-orange-500 hover:bg-orange-600 text-white p-3 sm:p-4 rounded-full shadow-lg transition-colors z-40"
-      >
-        <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-        </svg>
-      </button>
 
       {/* Footer */}
       <footer className="bg-black text-white py-4 mt-12">

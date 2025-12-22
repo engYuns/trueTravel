@@ -163,3 +163,48 @@ body {
     padding-right: 2rem;
   }
 }
+
+/* Brand secondary color override (orange -> #155dfc)
+   Many pages still use Tailwind's orange utility classes for the secondary accent.
+   This keeps the markup untouched while globally shifting the secondary color.
+*/
+:root {
+  --tt-secondary: #155dfc;
+}
+
+/* Text */
+.text-orange-400,
+.text-orange-500,
+.text-orange-600 {
+  color: var(--tt-secondary) !important;
+}
+
+.hover\:text-orange-400:hover,
+.hover\:text-orange-500:hover,
+.hover\:text-orange-600:hover {
+  color: var(--tt-secondary) !important;
+}
+
+/* Background */
+.bg-orange-500,
+.bg-orange-600 {
+  background-color: var(--tt-secondary) !important;
+}
+
+.hover\:bg-orange-500:hover,
+.hover\:bg-orange-600:hover {
+  background-color: var(--tt-secondary) !important;
+}
+
+/* Borders */
+.border-orange-200,
+.border-orange-500 {
+  border-color: var(--tt-secondary) !important;
+}
+
+/* Rings (Tailwind uses --tw-ring-color) */
+.ring-orange-500,
+.focus\:ring-orange-500:focus {
+  --tw-ring-color: var(--tt-secondary) !important;
+}
+

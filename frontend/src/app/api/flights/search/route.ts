@@ -68,9 +68,34 @@ export async function POST(request: NextRequest) {
       apiEndpoint,
     });
 
+    const carriers: Record<string, string> = response.dictionaries?.carriers || {};
+
+    // Fallback: If dictionaries.carriers is missing entries, fetch airline names.
+    const carrierCodesInResults = Array.from(
+      new Set(
+        (response.data || [])
+          .flatMap((offer: any) => (offer?.itineraries || []).flatMap((it: any) => it?.segments || []))
+          .flatMap((seg: any) => [seg?.carrierCode, seg?.operating?.carrierCode])
+          .filter(Boolean)
+          .map((c: any) => String(c).toUpperCase())
+      )
+    );
+
+    const missingCarrierCodes = carrierCodesInResults.filter((code) => !carriers?.[code]);
+    if (missingCarrierCodes.length > 0) {
+      const lookedUp = await amadeusService.lookupAirlines(missingCarrierCodes, {
+        apiKey,
+        apiSecret,
+        apiEndpoint,
+      });
+      for (const [code, name] of Object.entries(lookedUp || {})) {
+        if (!carriers[code] && name) carriers[code] = name;
+      }
+    }
+
     // Transform results
-    const flights = response.data?.map((offer: any, index: number) => 
-      transformFlightOffer(offer, index)
+    const flights = response.data?.map((offer: any, index: number) =>
+      transformFlightOffer(offer, index, carriers)
     ) || [];
 
     console.log(`Found ${flights.length} flights`);
@@ -79,6 +104,10 @@ export async function POST(request: NextRequest) {
       success: true,
       data: flights,
       meta: response.meta,
+      dictionaries: {
+        ...(response.dictionaries || {}),
+        carriers,
+      },
     });
 
   } catch (error: any) {
