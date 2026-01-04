@@ -122,14 +122,6 @@ const translations: Translations = {
     en: 'The opportunity to rent a car domestic and abroad through the well-known companies of the world with special deals.',
     ku: 'دەرفەتی کرێکردنی ئۆتۆمبێل لە ناوخۆ و دەرەوە لە ڕێگەی کۆمپانیا ناسراوەکانی جیهانەوە لەگەڵ ڕێکەوتنە تایبەتەکان.'
   },
-  'services.tour.title': {
-    en: 'Tour',
-    ku: 'گەشت'
-  },
-  'services.tour.description': {
-    en: 'Guaranteed departed domestic and abroad package tours prepared with special deals.',
-    ku: 'گەشتە پێکهاتەکانی ناوخۆ و دەرەوەی گەڕانتیکراو کە بە ڕێکەوتنە تایبەتەکانەوە ئامادەکراون.'
-  },
   'services.visa.title': {
     en: 'Visa',
     ku: 'ڤیزا'
