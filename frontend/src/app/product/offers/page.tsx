@@ -166,7 +166,6 @@ export default function OffersPage() {
                   <option value="Flight Ticket">Flight Ticket</option>
                   <option value="Hotel">Hotel</option>
                   <option value="Rent A Car">Rent A Car</option>
-                  <option value="Tour">Tour</option>
                   <option value="Transfer">Transfer</option>
                 </select>
               </div>
