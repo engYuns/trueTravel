@@ -21,6 +21,7 @@ export interface FlightSearchParams {
   nonStop?: boolean;
   currencyCode?: string;
   maxResults?: number;
+  includedAirlineCodes?: string[];
 }
 
 export interface AirportSearchParams {
@@ -99,6 +100,14 @@ class AmadeusService {
     }
     if (params.nonStop) {
       queryParams.append('nonStop', 'true');
+    }
+    if (Array.isArray(params.includedAirlineCodes) && params.includedAirlineCodes.length > 0) {
+      const codes = params.includedAirlineCodes
+        .map((c) => String(c || '').trim().toUpperCase())
+        .filter(Boolean);
+      if (codes.length > 0) {
+        queryParams.append('includedAirlineCodes', codes.join(','));
+      }
     }
 
     const response = await fetch(

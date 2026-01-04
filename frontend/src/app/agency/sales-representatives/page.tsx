@@ -8,6 +8,20 @@ import HeaderUserMenu from '@/components/HeaderUserMenu';
 export default function SalesRepresentativesPage() {
   const router = useRouter();
 
+  type SalesRep = {
+    id: number;
+    agency: string;
+    gender: string;
+    name: string;
+    lastName: string;
+    title: string;
+    email: string;
+    userName: string;
+    password: string;
+    phone: string;
+    roles: string[];
+  };
+
   const [showAgencyDropdown, setShowAgencyDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [showFareRuleSubmenu, setShowFareRuleSubmenu] = useState(false);
@@ -49,7 +63,7 @@ export default function SalesRepresentativesPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Table Data (Sample)
-  const [salesReps, setSalesReps] = useState([
+  const [salesReps, setSalesReps] = useState<SalesRep[]>([
     {
       id: 1,
       agency: 'True Travel',
@@ -105,8 +119,81 @@ export default function SalesRepresentativesPage() {
     });
   };
 
+  const ROLE_OPTIONS = [
+    'Agency Manager',
+    'Agency Credit Saler',
+    'Agency Saler',
+    'Agency Accounting',
+    'Agency Call Center',
+    'Agency Agent',
+    'Agency XML User'
+  ];
+
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [newModalSection, setNewModalSection] = useState<'general' | 'account'>('general');
+  const [newRep, setNewRep] = useState({
+    gender: 'Mr',
+    name: '',
+    lastName: '',
+    title: '',
+    email: '',
+    userName: '',
+    password: '',
+    phoneCountryCode: '+964',
+    phoneNumber: '',
+    agency: 'True Travel',
+    role: ''
+  });
+
+  const closeNewModal = () => {
+    setIsNewModalOpen(false);
+    setNewModalSection('general');
+    setNewRep({
+      gender: 'Mr',
+      name: '',
+      lastName: '',
+      title: '',
+      email: '',
+      userName: '',
+      password: '',
+      phoneCountryCode: '+964',
+      phoneNumber: '',
+      agency: agency === 'All' ? 'True Travel' : agency,
+      role: ''
+    });
+  };
+
   const handleNewRep = () => {
-    console.log('Create new sales representative');
+    setIsNewModalOpen(true);
+    setNewModalSection('general');
+    setNewRep((p) => ({
+      ...p,
+      agency: agency === 'All' ? 'True Travel' : agency
+    }));
+  };
+
+  const handleCreateRep = (e: React.FormEvent) => {
+    e.preventDefault();
+    const nextId = Math.max(0, ...salesReps.map((r) => r.id)) + 1;
+    const phone = `${newRep.phoneCountryCode} ${newRep.phoneNumber}`.trim();
+    const roles = newRep.role ? [newRep.role] : ['None selected'];
+
+    const created: SalesRep = {
+      id: nextId,
+      agency: newRep.agency || 'True Travel',
+      gender: newRep.gender,
+      name: newRep.name,
+      lastName: newRep.lastName,
+      title: newRep.title,
+      email: newRep.email,
+      userName: newRep.userName,
+      password: '********',
+      phone,
+      roles
+    };
+
+    setSalesReps((prev) => [created, ...prev]);
+    closeNewModal();
   };
 
   const handleEdit = (id: number) => {
@@ -183,6 +270,17 @@ export default function SalesRepresentativesPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/agency/agencies/add" 
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="font-medium">Add Agent</span>
                     </div>
                   </a>
                   <a 
@@ -749,6 +847,222 @@ export default function SalesRepresentativesPage() {
           </div>
         </div>
       </div>
+
+      {isNewModalOpen && (
+        <div className="fixed inset-0 z-[1000000] overflow-y-auto">
+          <button
+            type="button"
+            aria-label="Close new seller"
+            className="absolute inset-0 bg-black/50"
+            onClick={closeNewModal}
+          />
+
+          <div className="relative min-h-full flex items-start justify-center p-4 sm:p-6">
+            <div className="w-full max-w-6xl border border-orange-500 bg-white max-h-[calc(100vh-2rem)] flex flex-col">
+              <div className="bg-orange-500 text-white px-6 py-4 text-2xl font-semibold shrink-0">Seller</div>
+
+              <form onSubmit={handleCreateRep} className="p-6 overflow-y-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  <div className="lg:col-span-3">
+                    <div className="bg-white border border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setNewModalSection('general')}
+                        className={
+                          'w-full flex items-center gap-3 px-5 py-4 border-b border-gray-200 text-left transition-colors ' +
+                          (newModalSection === 'general' ? 'bg-white text-orange-600' : 'bg-gray-50 hover:bg-white text-orange-600')
+                        }
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 10a4 4 0 100-8 4 4 0 000 8zm-7 8a7 7 0 0114 0H3z" />
+                        </svg>
+                        <span className="text-lg font-medium">General Info</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setNewModalSection('account')}
+                        className={
+                          'w-full flex items-center gap-3 px-5 py-4 text-left transition-colors ' +
+                          (newModalSection === 'account' ? 'bg-white text-orange-600' : 'bg-gray-50 hover:bg-white text-orange-600')
+                        }
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M4 6h12v2H4V6zm0 4h12v2H4v-2zm0 4h12v2H4v-2z" />
+                        </svg>
+                        <span className="text-lg font-medium">Account Informations</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-9">
+                    {newModalSection === 'general' && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">Gender</label>
+                          <select
+                            value={newRep.gender}
+                            onChange={(e) => setNewRep((p) => ({ ...p, gender: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                            <option value="Mr">Mr</option>
+                            <option value="Mrs">Mrs</option>
+                            <option value="Ms">Ms</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">Name</label>
+                          <input
+                            value={newRep.name}
+                            onChange={(e) => setNewRep((p) => ({ ...p, name: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">Last Name</label>
+                          <input
+                            value={newRep.lastName}
+                            onChange={(e) => setNewRep((p) => ({ ...p, lastName: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">E-mail</label>
+                          <input
+                            type="email"
+                            value={newRep.email}
+                            onChange={(e) => setNewRep((p) => ({ ...p, email: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">User Name</label>
+                          <input
+                            value={newRep.userName}
+                            onChange={(e) => setNewRep((p) => ({ ...p, userName: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">Password</label>
+                          <input
+                            type="password"
+                            value={newRep.password}
+                            onChange={(e) => setNewRep((p) => ({ ...p, password: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">Agency</label>
+                          <input
+                            value={newRep.agency}
+                            onChange={(e) => setNewRep((p) => ({ ...p, agency: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">Role</label>
+                          <select
+                            value={newRep.role}
+                            onChange={(e) => setNewRep((p) => ({ ...p, role: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                            <option value="">None selected</option>
+                            {ROLE_OPTIONS.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">Title</label>
+                          <input
+                            value={newRep.title}
+                            onChange={(e) => setNewRep((p) => ({ ...p, title: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">Phone</label>
+                          <div className="flex items-center border border-gray-300 px-3 py-2">
+                            <select
+                              value={newRep.phoneCountryCode}
+                              onChange={(e) => setNewRep((p) => ({ ...p, phoneCountryCode: e.target.value }))}
+                              className="bg-transparent text-gray-900 focus:outline-none mr-2"
+                            >
+                              <option value="+964">🇮🇶 +964</option>
+                              <option value="+90">🇹🇷 +90</option>
+                            </select>
+                            <input
+                              value={newRep.phoneNumber}
+                              onChange={(e) => setNewRep((p) => ({ ...p, phoneNumber: e.target.value }))}
+                              className="flex-1 bg-transparent text-gray-900 placeholder:text-gray-500 focus:outline-none"
+                              placeholder="750 000 0000"
+                              required
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {newModalSection === 'account' && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">Agency</label>
+                          <input
+                            value={newRep.agency}
+                            onChange={(e) => setNewRep((p) => ({ ...p, agency: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-orange-500 mb-2">Role</label>
+                          <select
+                            value={newRep.role}
+                            onChange={(e) => setNewRep((p) => ({ ...p, role: e.target.value }))}
+                            className="w-full border border-gray-300 px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                            <option value="">None selected</option>
+                            {ROLE_OPTIONS.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-10">
+                  <button type="submit" className="bg-teal-500 hover:bg-teal-600 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                    ✓Save
+                  </button>
+                  <button type="button" onClick={closeNewModal} className="bg-red-400 hover:bg-red-500 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                    × Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="bg-black text-white py-4 mt-12">

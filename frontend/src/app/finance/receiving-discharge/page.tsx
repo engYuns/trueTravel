@@ -4,6 +4,50 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import HeaderUserMenu from '@/components/HeaderUserMenu';
+import { loadStoredAgencies } from '@/lib/agencyStorage';
+
+type Notice = { type: 'success' | 'error'; message: string };
+
+type ReceivingDischargeRecord = {
+  id: string;
+  createdAt: string;
+  transactionType: string;
+  accountType: string;
+  accountName: string;
+  amount: number;
+  currency: string;
+  transactionDate: string;
+  transactionTime: string;
+  paymentDate: string;
+  paymentTime: string;
+  paymentType: string;
+  description: string;
+};
+
+const STORAGE_KEY = 'trueTravel.financeReceivingDischarge.v1';
+
+function parseAmount(raw: string): number | null {
+  const cleaned = raw.replace(/,/g, '').trim();
+  if (!cleaned) return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value)) return null;
+  return value;
+}
+
+function safeParseArray(raw: string | null): unknown[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function makeId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `rd-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 export default function FinanceReceivingDischargePage() {
   const router = useRouter();
@@ -25,12 +69,29 @@ export default function FinanceReceivingDischargePage() {
   const [accountName, setAccountName] = useState('True Travel');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
+  const [paymentType, setPaymentType] = useState('Cash');
 
   const [transactionDate, setTransactionDate] = useState('');
   const [transactionTime, setTransactionTime] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentTime, setPaymentTime] = useState('');
   const [description, setDescription] = useState('');
+
+  const [notice, setNotice] = useState<Notice | null>(null);
+
+  // IMPORTANT: avoid reading localStorage during initial render to prevent hydration mismatches.
+  const [agencySuggestions, setAgencySuggestions] = useState<string[]>(['True Travel']);
+
+  useEffect(() => {
+    const stored = loadStoredAgencies();
+    const names = stored
+      .map((a) => a?.table?.agencyName || a?.form?.general?.companyName)
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      .map((v) => v.trim());
+    const unique = Array.from(new Set(['True Travel', ...names]));
+    unique.sort((a, b) => a.localeCompare(b));
+    setAgencySuggestions(unique);
+  }, []);
 
   const descriptionMax = 255;
   const remaining = useMemo(() => Math.max(descriptionMax - description.length, 0), [description]);
@@ -51,6 +112,62 @@ export default function FinanceReceivingDischargePage() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [fareRuleSubmenuLocked]);
+
+  const handleClear = () => {
+    setNotice(null);
+    setTransactionType('Receiving');
+    setAccountType('Agency');
+    setAccountName('True Travel');
+    setAmount('');
+    setCurrency('USD');
+    setPaymentType('Cash');
+    setTransactionDate('');
+    setTransactionTime('');
+    setPaymentDate('');
+    setPaymentTime('');
+    setDescription('');
+  };
+
+  const handleSave = () => {
+    setNotice(null);
+
+    const parsedAmount = parseAmount(amount);
+    if (parsedAmount === null || parsedAmount <= 0) {
+      setNotice({ type: 'error', message: 'Amount must be a valid number greater than 0.' });
+      return;
+    }
+    if (!accountName.trim()) {
+      setNotice({ type: 'error', message: 'Account Name is required.' });
+      return;
+    }
+    if (!transactionDate) {
+      setNotice({ type: 'error', message: 'Transaction date is required.' });
+      return;
+    }
+
+    const record: ReceivingDischargeRecord = {
+      id: makeId(),
+      createdAt: new Date().toISOString(),
+      transactionType,
+      accountType,
+      accountName: accountName.trim(),
+      amount: parsedAmount,
+      currency,
+      transactionDate,
+      transactionTime,
+      paymentDate,
+      paymentTime,
+      paymentType,
+      description: description.trim(),
+    };
+
+    const current = safeParseArray(window.localStorage.getItem(STORAGE_KEY)) as ReceivingDischargeRecord[];
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([record, ...current]));
+
+    setNotice({ type: 'success', message: 'Transaction saved successfully.' });
+    setAmount('');
+    setDescription('');
+  };
 
   const CalendarIcon = () => (
     <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
@@ -121,6 +238,14 @@ export default function FinanceReceivingDischargePage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
+                    </div>
+                  </a>
+                  <a href="/agency/agencies/add" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="font-medium">Add Agent</span>
                     </div>
                   </a>
                   <a href="/agency/sales-representatives" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
@@ -484,6 +609,18 @@ export default function FinanceReceivingDischargePage() {
           </div>
         </div>
 
+        {notice && (
+          <div
+            className={
+              'mb-6 rounded-md border px-4 py-3 text-sm ' +
+              (notice.type === 'success' ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800')
+            }
+            role="status"
+          >
+            {notice.message}
+          </div>
+        )}
+
         <div className="bg-white border border-orange-500 rounded-sm overflow-hidden">
           <div className="bg-orange-500 text-white px-5 py-4">
             <h3 className="text-2xl font-medium">Amount Based Transaction</h3>
@@ -521,8 +658,14 @@ export default function FinanceReceivingDischargePage() {
                   type="text"
                   value={accountName}
                   onChange={(e) => setAccountName(e.target.value)}
+                  list="account-name-suggestions"
                   className="w-full px-4 py-3 border border-red-200 bg-white rounded-none text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
+                <datalist id="account-name-suggestions">
+                  {agencySuggestions.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
               </div>
 
               <div className="lg:col-span-2">
@@ -605,13 +748,33 @@ export default function FinanceReceivingDischargePage() {
                 <div className="mt-2 text-sm text-orange-500">{remaining}</div>
               </div>
 
-              <div className="lg:col-span-1 flex items-start justify-end">
+              <div className="lg:col-span-3">
+                <label className="block text-sm font-medium text-orange-500 mb-2">Payment Type</label>
+                <select
+                  value={paymentType}
+                  onChange={(e) => setPaymentType(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 bg-gray-100 rounded-none text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Credit Card">Credit Card</option>
+                </select>
+              </div>
+
+              <div className="lg:col-span-12 flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  className="mt-8 px-6 py-3 bg-rose-400 hover:bg-rose-500 text-white rounded-md transition-colors font-medium"
-                  onClick={() => console.log('Payment Type')}
+                  className="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-md transition-colors font-medium"
+                  onClick={handleSave}
                 >
-                  Payment Type
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="px-8 py-3 border border-gray-300 bg-white text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium"
+                  onClick={handleClear}
+                >
+                  Clear
                 </button>
               </div>
             </div>

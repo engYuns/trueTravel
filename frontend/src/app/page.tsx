@@ -2,10 +2,100 @@
 // Original homepage content restored
 import Image from "next/image";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+type AirlinePartner = {
+  name: string;
+  className: string;
+  minWidthClassName?: string;
+};
+
+const AIRLINE_PARTNERS: AirlinePartner[] = [
+  { name: 'AEGEAN', className: 'text-2xl font-bold text-blue-600' },
+  { name: 'Air Europa', className: 'text-xl font-bold text-blue-500' },
+  { name: 'AIR FRANCE', className: 'text-xl font-bold text-red-600' },
+  { name: 'BRITISH AIRWAYS', className: 'text-xl font-bold text-blue-700', minWidthClassName: 'min-w-[180px]' },
+  { name: 'Emirates', className: 'text-xl font-bold text-red-500' },
+  { name: 'flydubai', className: 'text-xl font-bold text-blue-600' },
+  { name: 'TURKISH AIRLINES', className: 'text-xl font-bold text-blue-700', minWidthClassName: 'min-w-[180px]' },
+  { name: 'Qatar Airways', className: 'text-xl font-bold text-blue-500' },
+  { name: 'Etihad', className: 'text-xl font-bold text-red-600' },
+  { name: 'Lufthansa', className: 'text-xl font-bold text-blue-600' },
+  { name: 'KLM', className: 'text-xl font-bold text-blue-500' },
+  { name: 'Swiss', className: 'text-xl font-bold text-red-500' },
+  { name: 'Pegasus', className: 'text-xl font-bold text-blue-700' },
+  { name: 'AJet', className: 'text-xl font-bold text-blue-600' },
+  { name: 'Ryanair', className: 'text-xl font-bold text-blue-600' },
+  { name: 'easyJet', className: 'text-xl font-bold text-red-500' },
+  { name: 'Wizz Air', className: 'text-xl font-bold text-red-600' },
+  { name: 'Air Arabia', className: 'text-xl font-bold text-red-600' },
+  { name: 'Royal Jordanian', className: 'text-xl font-bold text-blue-700', minWidthClassName: 'min-w-[180px]' },
+  { name: 'Middle East Airlines', className: 'text-xl font-bold text-blue-600', minWidthClassName: 'min-w-[200px]' },
+  { name: 'Saudia', className: 'text-xl font-bold text-blue-700' },
+  { name: 'Oman Air', className: 'text-xl font-bold text-blue-500' },
+  { name: 'Kuwait Airways', className: 'text-xl font-bold text-blue-600', minWidthClassName: 'min-w-[180px]' },
+  { name: 'Gulf Air', className: 'text-xl font-bold text-red-500' },
+  { name: 'ITA Airways', className: 'text-xl font-bold text-blue-600' },
+  { name: 'Iberia', className: 'text-xl font-bold text-red-600' },
+  { name: 'TAP Air Portugal', className: 'text-xl font-bold text-blue-600', minWidthClassName: 'min-w-[180px]' },
+  { name: 'Austrian', className: 'text-xl font-bold text-red-500' },
+  { name: 'Brussels Airlines', className: 'text-xl font-bold text-blue-700', minWidthClassName: 'min-w-[200px]' },
+  { name: 'Finnair', className: 'text-xl font-bold text-blue-500' },
+  { name: 'SAS', className: 'text-xl font-bold text-blue-600' },
+];
 
 export default function Home() {
   const { language, setLanguage, t } = useLanguage();
+  const airlinePartnersRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = airlinePartnersRef.current;
+    if (!el) return;
+
+    const getCopyWidth = () => {
+      // We render 3 identical copies for seamless wrapping
+      const sw = el.scrollWidth;
+      return sw > 0 ? sw / 3 : 0;
+    };
+
+    const ensureMiddleCopy = () => {
+      const copyWidth = getCopyWidth();
+      if (!copyWidth) return;
+      // Start in the middle copy so user can scroll both directions “forever”.
+      if (el.scrollLeft < copyWidth * 0.75 || el.scrollLeft > copyWidth * 1.25) {
+        el.scrollLeft = copyWidth;
+      }
+    };
+
+    const onScroll = () => {
+      const copyWidth = getCopyWidth();
+      if (!copyWidth) return;
+      // If user reaches the edges of the middle copy, jump to the same position in the middle.
+      if (el.scrollLeft <= copyWidth * 0.5) {
+        el.scrollLeft += copyWidth;
+      } else if (el.scrollLeft >= copyWidth * 1.5) {
+        el.scrollLeft -= copyWidth;
+      }
+    };
+
+    // Wait for layout so scrollWidth is correct.
+    const raf = requestAnimationFrame(() => {
+      ensureMiddleCopy();
+      el.addEventListener('scroll', onScroll, { passive: true });
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener('scroll', onScroll);
+    };
+  }, []);
+
+  const scrollAirlinePartners = (direction: 'left' | 'right') => {
+    const el = airlinePartnersRef.current;
+    if (!el) return;
+    const amount = Math.max(240, Math.round(el.clientWidth * 0.7));
+    el.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' });
+  };
 
   const openGoogleMaps = () => {
     // Open Google Maps with directions from current location to True Travel office
@@ -168,24 +258,43 @@ export default function Home() {
           <h3 className={`text-xl sm:text-2xl lg:text-3xl font-bold text-center text-gray-800 mb-8 sm:mb-12 ${language === 'ku' ? 'font-arabic' : ''}`}>
             Airline <span className="text-blue-500">Partners</span>
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-8 items-center opacity-60">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">AEGEAN</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xl font-bold text-blue-500">Air Europa</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xl font-bold text-red-600">AIR FRANCE</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xl font-bold text-blue-700">BRITISH AIRWAYS</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xl font-bold text-red-500">Emirates</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xl font-bold text-blue-600">flydubai</div>
+          <div className="relative -mx-4 sm:-mx-6">
+            <button
+              type="button"
+              aria-label="Scroll airline partners left"
+              onClick={() => scrollAirlinePartners('left')}
+              className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-10 bg-white/90 border border-gray-200 rounded-full w-9 h-9 flex items-center justify-center shadow-sm hover:bg-white"
+            >
+              <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              aria-label="Scroll airline partners right"
+              onClick={() => scrollAirlinePartners('right')}
+              className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-10 bg-white/90 border border-gray-200 rounded-full w-9 h-9 flex items-center justify-center shadow-sm hover:bg-white"
+            >
+              <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+
+            <div ref={airlinePartnersRef} className="overflow-x-auto tt-hide-scrollbar">
+              <div
+                className="flex items-center gap-8 sm:gap-12 px-14 sm:px-16 opacity-60"
+                style={{ minWidth: 'max-content' }}
+              >
+                {[...AIRLINE_PARTNERS, ...AIRLINE_PARTNERS, ...AIRLINE_PARTNERS].map((airline, idx) => (
+                  <div
+                    key={`${airline.name}-${idx}`}
+                    className={`text-center ${airline.minWidthClassName ?? 'min-w-[160px]'}`}
+                  >
+                    <div className={airline.className}>{airline.name}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

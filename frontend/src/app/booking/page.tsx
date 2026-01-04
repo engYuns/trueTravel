@@ -134,12 +134,20 @@ export default function BookingPage() {
     );
   }
 
+  const isMultipointBooking = Array.isArray(bookingData?.legs) && bookingData.legs.length > 0;
+  const legs = isMultipointBooking ? bookingData.legs : [];
+
   const { outbound, outboundClass, return: returnFlight, returnClass } = bookingData;
-  const outboundAirlineLabel = getCarrierLabel(outbound);
+
+  const outboundAirlineLabel = getCarrierLabel(isMultipointBooking ? legs?.[0]?.flight : outbound);
   const returnAirlineLabel = getCarrierLabel(returnFlight);
+
+  const legsBaseFare = isMultipointBooking
+    ? legs.reduce((sum: number, l: any) => sum + Number(l?.legClass?.price ?? l?.flight?.price ?? 0), 0)
+    : 0;
   const outboundPrice = (outboundClass?.price ?? outbound?.price ?? 0) as number;
   const returnPrice = (returnClass?.price ?? returnFlight?.price ?? 0) as number;
-  const baseFare = outboundPrice + returnPrice;
+  const baseFare = isMultipointBooking ? legsBaseFare : outboundPrice + returnPrice;
   // Amadeus offer prices are already total-inclusive; avoid adding simulated taxes.
   const taxes = 0;
   const total = baseFare + parseFloat(commission || '0');
@@ -211,6 +219,14 @@ export default function BookingPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
+                    </div>
+                  </a>
+                  <a href="/agency/agencies/add" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="font-medium">Add Agent</span>
                     </div>
                   </a>
                   <a href="/agency/sales-representatives" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
@@ -857,112 +873,179 @@ export default function BookingPage() {
                 <span className="bg-red-500 text-white text-xs px-2 py-1 rounded">1 Warning</span>
               </div>
 
-              {/* Outbound Flight */}
-              <div className="mb-6">
-                <div className="flex items-center space-x-2 mb-3">
-                  <Image src={outbound?.logo || '/default-airline.png'} alt={outboundAirlineLabel} width={40} height={40} className="object-contain" />
-                  <span className="font-medium text-red-600">{outboundAirlineLabel}</span>
-                </div>
+              {isMultipointBooking ? (
+                <div className="space-y-6">
+                  {legs.map((leg: any, idx: number) => {
+                    const flight = leg?.flight;
+                    const airlineLabel = getCarrierLabel(flight);
+                    return (
+                      <div key={idx} className={idx > 0 ? 'border-t pt-6' : ''}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <Image src={flight?.logo || '/default-airline.png'} alt={airlineLabel} width={40} height={40} className="object-contain" />
+                            <span className="font-medium text-red-600">{airlineLabel}</span>
+                          </div>
+                          <div className="text-xs text-gray-600 font-medium">Leg {idx + 1}</div>
+                        </div>
 
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-teal-500 rounded-full"></div>
-                    <span className="font-medium">Departure</span>
-                  </div>
-                  <div className="ml-5">
-                    <div className="text-lg font-bold text-teal-600">{outbound?.departure?.time}</div>
-                    <div className="text-gray-600">{outbound?.departure?.date}</div>
-                    <div className="text-gray-600">{outbound?.departure?.airport}</div>
-                  </div>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-3 h-3 bg-teal-500 rounded-full"></div>
+                            <span className="font-medium">Departure</span>
+                          </div>
+                          <div className="ml-5">
+                            <div className="text-lg font-bold text-teal-600">{flight?.departure?.time}</div>
+                            <div className="text-gray-600">{flight?.departure?.date}</div>
+                            <div className="text-gray-600">{flight?.departure?.airport}</div>
+                          </div>
 
-                  <div className="flex items-center space-x-2 mt-3">
-                    <div className="w-3 h-3 bg-white border-2 border-teal-500 rounded-full"></div>
-                    <span className="font-medium">Arrival</span>
-                  </div>
-                  <div className="ml-5">
-                    <div className="text-lg font-bold">{outbound?.arrival?.time}</div>
-                    <div className="text-gray-600">{outbound?.arrival?.date}</div>
-                    <div className="text-gray-600">{outbound?.arrival?.airport}</div>
-                  </div>
+                          <div className="flex items-center space-x-2 mt-3">
+                            <div className="w-3 h-3 bg-white border-2 border-teal-500 rounded-full"></div>
+                            <span className="font-medium">Arrival</span>
+                          </div>
+                          <div className="ml-5">
+                            <div className="text-lg font-bold">{flight?.arrival?.time}</div>
+                            <div className="text-gray-600">{flight?.arrival?.date}</div>
+                            <div className="text-gray-600">{flight?.arrival?.airport}</div>
+                          </div>
 
-                  <div className="ml-5 mt-2 space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                        <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-gray-600">Class: {outboundClass?.name}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" />
-                      </svg>
-                      <span className="text-gray-600">Flight Code: {outbound?.flightNumber}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-                        <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
-                      </svg>
-                      <span className="text-gray-600">Adult: 25 KG</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Return Flight */}
-              {returnFlight && (
-                <div className="border-t pt-6">
-                  <div className="flex items-center space-x-2 mb-3">
-                    <Image src={returnFlight?.logo || '/default-airline.png'} alt={returnAirlineLabel} width={40} height={40} className="object-contain" />
-                    <span className="font-medium text-red-600">{returnAirlineLabel}</span>
-                  </div>
-
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-teal-500 rounded-full"></div>
-                      <span className="font-medium">Departure</span>
-                    </div>
-                    <div className="ml-5">
-                      <div className="text-lg font-bold text-teal-600">{returnFlight?.departure?.time}</div>
-                      <div className="text-gray-600">{returnFlight?.departure?.date}</div>
-                      <div className="text-gray-600">{returnFlight?.departure?.airport}</div>
-                    </div>
-
-                    <div className="flex items-center space-x-2 mt-3">
-                      <div className="w-3 h-3 bg-white border-2 border-teal-500 rounded-full"></div>
-                      <span className="font-medium">Arrival</span>
-                    </div>
-                    <div className="ml-5">
-                      <div className="text-lg font-bold">{returnFlight?.arrival?.time}</div>
-                      <div className="text-gray-600">{returnFlight?.arrival?.date}</div>
-                      <div className="text-gray-600">{returnFlight?.arrival?.airport}</div>
-                    </div>
-
-                    <div className="ml-5 mt-2 space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                          <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
-                        </svg>
-                        <span className="text-gray-600">Class: {returnClass?.name}</span>
+                          <div className="ml-5 mt-2 space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-gray-600">Class: {leg?.legClass?.title || leg?.legClass?.name || flight?.class}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" />
+                              </svg>
+                              <span className="text-gray-600">Flight Code: {flight?.flightNumber}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                                <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                              </svg>
+                              <span className="text-gray-600">Adult: 25 KG</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <>
+                  {/* Outbound Flight */}
+                  <div className="mb-6">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Image src={outbound?.logo || '/default-airline.png'} alt={outboundAirlineLabel} width={40} height={40} className="object-contain" />
+                      <span className="font-medium text-red-600">{outboundAirlineLabel}</span>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
                       <div className="flex items-center space-x-2">
-                        <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" />
-                        </svg>
-                        <span className="text-gray-600">Flight Code: {returnFlight?.flightNumber}</span>
+                        <div className="w-3 h-3 bg-teal-500 rounded-full"></div>
+                        <span className="font-medium">Departure</span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-                          <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
-                        </svg>
-                        <span className="text-gray-600">Adult: 25 KG</span>
+                      <div className="ml-5">
+                        <div className="text-lg font-bold text-teal-600">{outbound?.departure?.time}</div>
+                        <div className="text-gray-600">{outbound?.departure?.date}</div>
+                        <div className="text-gray-600">{outbound?.departure?.airport}</div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 mt-3">
+                        <div className="w-3 h-3 bg-white border-2 border-teal-500 rounded-full"></div>
+                        <span className="font-medium">Arrival</span>
+                      </div>
+                      <div className="ml-5">
+                        <div className="text-lg font-bold">{outbound?.arrival?.time}</div>
+                        <div className="text-gray-600">{outbound?.arrival?.date}</div>
+                        <div className="text-gray-600">{outbound?.arrival?.airport}</div>
+                      </div>
+
+                      <div className="ml-5 mt-2 space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-gray-600">Class: {outboundClass?.name}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" />
+                          </svg>
+                          <span className="text-gray-600">Flight Code: {outbound?.flightNumber}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                          </svg>
+                          <span className="text-gray-600">Adult: 25 KG</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+
+                  {/* Return Flight */}
+                  {returnFlight && (
+                    <div className="border-t pt-6">
+                      <div className="flex items-center space-x-2 mb-3">
+                        <Image src={returnFlight?.logo || '/default-airline.png'} alt={returnAirlineLabel} width={40} height={40} className="object-contain" />
+                        <span className="font-medium text-red-600">{returnAirlineLabel}</span>
+                      </div>
+
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-3 h-3 bg-teal-500 rounded-full"></div>
+                          <span className="font-medium">Departure</span>
+                        </div>
+                        <div className="ml-5">
+                          <div className="text-lg font-bold text-teal-600">{returnFlight?.departure?.time}</div>
+                          <div className="text-gray-600">{returnFlight?.departure?.date}</div>
+                          <div className="text-gray-600">{returnFlight?.departure?.airport}</div>
+                        </div>
+
+                        <div className="flex items-center space-x-2 mt-3">
+                          <div className="w-3 h-3 bg-white border-2 border-teal-500 rounded-full"></div>
+                          <span className="font-medium">Arrival</span>
+                        </div>
+                        <div className="ml-5">
+                          <div className="text-lg font-bold">{returnFlight?.arrival?.time}</div>
+                          <div className="text-gray-600">{returnFlight?.arrival?.date}</div>
+                          <div className="text-gray-600">{returnFlight?.arrival?.airport}</div>
+                        </div>
+
+                        <div className="ml-5 mt-2 space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                              <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-gray-600">Class: {returnClass?.name}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" />
+                            </svg>
+                            <span className="text-gray-600">Flight Code: {returnFlight?.flightNumber}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                              <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                            </svg>
+                            <span className="text-gray-600">Adult: 25 KG</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -1065,7 +1148,6 @@ export default function BookingPage() {
     </div>
   );
 }
-
 
 
 

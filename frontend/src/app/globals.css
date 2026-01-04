@@ -26,6 +26,27 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Use pointer cursor on interactive controls */
+button:not(:disabled),
+input[type="button"]:not(:disabled),
+input[type="submit"]:not(:disabled),
+input[type="reset"]:not(:disabled),
+select:not(:disabled),
+a[href],
+summary,
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:disabled,
+input[type="button"]:disabled,
+input[type="submit"]:disabled,
+input[type="reset"]:disabled,
+select:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 .font-arabic {
   font-family: 'Noto Sans Arabic', sans-serif;
   direction: rtl;
@@ -96,6 +117,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Prevent browser autofill tinting (keeps inputs readable) */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--foreground) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--background) inset !important;
+  box-shadow: 0 0 0px 1000px var(--background) inset !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
 /* Touch optimizations */
 .touch-pan-x {
   touch-action: pan-x;
@@ -107,6 +138,16 @@ body {
 
 .touch-manipulation {
   touch-action: manipulation;
+}
+
+/* Hide scrollbars but keep scrolling enabled */
+.tt-hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.tt-hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 /* Scroll behavior improvements */

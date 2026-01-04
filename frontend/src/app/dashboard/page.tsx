@@ -18,6 +18,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import HeaderUserMenu from '@/components/HeaderUserMenu';
+import FlightSearchForm from '@/components/FlightSearchForm';
+import { performFlightSearch, type FlightSearchCriteria } from '@/lib/flightSearch';
 
 type RecentSearch = {
   from: string;
@@ -34,30 +36,26 @@ type RecentSearch = {
   timestamp: string;
 };
 
-// Popular cities for Middle East region
-const POPULAR_CITIES = [
-  { code: 'EBL', name: 'Erbil International Airport', city: 'Erbil', country: 'Iraq', displayText: 'EBL - Erbil International Airport' },
-  { code: 'ISU', name: 'Sulaymaniyah International Airport', city: 'Sulaymaniyah', country: 'Iraq', displayText: 'ISU - Sulaymaniyah International Airport' },
-  { code: 'BGW', name: 'Baghdad International Airport', city: 'Baghdad', country: 'Iraq', displayText: 'BGW - Baghdad International Airport' },
-  { code: 'IST', name: 'Istanbul Airport', city: 'Istanbul', country: 'Turkey', displayText: 'IST - Istanbul Airport' },
-  { code: 'ESB', name: 'Esenboğa Airport', city: 'Ankara', country: 'Turkey', displayText: 'ESB - Esenboğa Airport' },
-  { code: 'DXB', name: 'Dubai International Airport', city: 'Dubai', country: 'United Arab Emirates', displayText: 'DXB - Dubai International Airport' },
-  { code: 'AUH', name: 'Abu Dhabi International Airport', city: 'Abu Dhabi', country: 'United Arab Emirates', displayText: 'AUH - Abu Dhabi International Airport' },
-  { code: 'DOH', name: 'Hamad International Airport', city: 'Doha', country: 'Qatar', displayText: 'DOH - Hamad International Airport' },
-  { code: 'RUH', name: 'King Khalid International Airport', city: 'Riyadh', country: 'Saudi Arabia', displayText: 'RUH - King Khalid International Airport' },
-  { code: 'JED', name: 'King Abdulaziz International Airport', city: 'Jeddah', country: 'Saudi Arabia', displayText: 'JED - King Abdulaziz International Airport' },
-  { code: 'KWI', name: 'Kuwait International Airport', city: 'Kuwait City', country: 'Kuwait', displayText: 'KWI - Kuwait International Airport' },
-  { code: 'BAH', name: 'Bahrain International Airport', city: 'Manama', country: 'Bahrain', displayText: 'BAH - Bahrain International Airport' },
-  { code: 'MCT', name: 'Muscat International Airport', city: 'Muscat', country: 'Oman', displayText: 'MCT - Muscat International Airport' },
-  { code: 'IKA', name: 'Imam Khomeini International Airport', city: 'Tehran', country: 'Iran', displayText: 'IKA - Imam Khomeini International Airport' },
-  { code: 'BEY', name: 'Rafic Hariri International Airport', city: 'Beirut', country: 'Lebanon', displayText: 'BEY - Rafic Hariri International Airport' },
-  { code: 'AMM', name: 'Queen Alia International Airport', city: 'Amman', country: 'Jordan', displayText: 'AMM - Queen Alia International Airport' },
-  { code: 'DAM', name: 'Damascus International Airport', city: 'Damascus', country: 'Syria', displayText: 'DAM - Damascus International Airport' },
-  { code: 'CAI', name: 'Cairo International Airport', city: 'Cairo', country: 'Egypt', displayText: 'CAI - Cairo International Airport' },
-];
-
 export default function Dashboard() {
   const router = useRouter();
+
+  // Ads carousel state (Hero section)
+  const heroAds = [
+    { id: 'truetravel-1', label: 'TrueTravel Ad' },
+    { id: 'truetravel-2', label: 'TrueTravel Ad' },
+    { id: 'truetravel-3', label: 'TrueTravel Ad' },
+  ] as const;
+  const [activeHeroAdIndex, setActiveHeroAdIndex] = useState(0);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setActiveHeroAdIndex((prev) => (prev + 1) % heroAds.length);
+    }, 3500);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [heroAds.length]);
   
   // Agency Dropdown State
   const [showAgencyDropdown, setShowAgencyDropdown] = useState(false);
@@ -112,14 +110,6 @@ export default function Dashboard() {
   const [searchError, setSearchError] = useState("");
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [bottomTab, setBottomTab] = useState<'recent' | 'optional'>('recent');
-  
-  // Location Autocomplete State
-  const [showFromDropdown, setShowFromDropdown] = useState(false);
-  const [showToDropdown, setShowToDropdown] = useState(false);
-  const [fromSuggestions, setFromSuggestions] = useState<any[]>([]);
-  const [toSuggestions, setToSuggestions] = useState<any[]>([]);
-  const [isLoadingFrom, setIsLoadingFrom] = useState(false);
-  const [isLoadingTo, setIsLoadingTo] = useState(false);
 
   // Helper functions
   const handleLogout = () => {
@@ -394,112 +384,66 @@ export default function Dashboard() {
     }
   }, []);
 
-  const handleSearchAgain = async (s: RecentSearch) => {
-    setActiveService('Flight Ticket');
-    setFromLocation(s.from);
-    setToLocation(s.to);
-    setDepartureDate(s.departure);
-    setReturnDate(s.return || getWeekLaterDate());
-    setTripType(s.tripType || 'Roundtrip');
-    setFlightClass(s.class || 'Economy');
-    setIsDirect(Boolean(s.isDirect));
-    setAdults(s.adults ?? 1);
-    setChildren(s.children ?? 0);
-    setInfants(s.infants ?? 0);
-    setBottomTab('recent');
-
-    // Let state updates flush before searching.
-    setTimeout(() => {
-      void searchFlights();
-    }, 0);
+  const formatPassengersFromCounts = (a: number, c: number, i: number) => {
+    const parts: string[] = [];
+    if (a > 0) parts.push(`${a} Adult${a > 1 ? 's' : ''}`);
+    if (c > 0) parts.push(`${c} Child${c > 1 ? 'ren' : ''}`);
+    if (i > 0) parts.push(`${i} Infant${i > 1 ? 's' : ''}`);
+    return parts.length > 0 ? parts.join(', ') : 'Select Passengers';
   };
 
-  // Debounced location search
-  useEffect(() => {
-    const searchLocations = async (keyword: string, type: 'from' | 'to') => {
-      if (keyword.length === 0) {
-        // Show all popular cities when input is empty
-        if (type === 'from') {
-          setFromSuggestions(POPULAR_CITIES);
-          setShowFromDropdown(true);
-        } else {
-          setToSuggestions(POPULAR_CITIES);
-          setShowToDropdown(true);
-        }
-        return;
-      }
-
-      if (keyword.length === 1) {
-        // Filter popular cities locally for first character (instant filtering)
-        const filtered = POPULAR_CITIES.filter(city => 
-          city.code.toLowerCase().startsWith(keyword.toLowerCase()) ||
-          city.name.toLowerCase().includes(keyword.toLowerCase()) ||
-          city.city.toLowerCase().startsWith(keyword.toLowerCase()) ||
-          city.country.toLowerCase().includes(keyword.toLowerCase())
-        );
-        
-        if (type === 'from') {
-          setFromSuggestions(filtered.length > 0 ? filtered : POPULAR_CITIES);
-          setShowFromDropdown(true);
-        } else {
-          setToSuggestions(filtered.length > 0 ? filtered : POPULAR_CITIES);
-          setShowToDropdown(true);
-        }
-        return;
-      }
-
-      // Set loading state for API search (2+ characters)
-      if (type === 'from') {
-        setIsLoadingFrom(true);
-      } else {
-        setIsLoadingTo(true);
-      }
-
-      try {
-        const response = await fetch(`/api/locations/search?keyword=${encodeURIComponent(keyword)}`);
-        const data = await response.json();
-
-        if (response.ok) {
-          if (type === 'from') {
-            setFromSuggestions(data.data || []);
-            setShowFromDropdown(true);
-          } else {
-            setToSuggestions(data.data || []);
-            setShowToDropdown(true);
-          }
-        }
-      } catch (error) {
-        console.error('Location search error:', error);
-      } finally {
-        if (type === 'from') {
-          setIsLoadingFrom(false);
-        } else {
-          setIsLoadingTo(false);
-        }
-      }
+  const handleFlightSearchComplete = async ({ criteria, searchParams }: { criteria: FlightSearchCriteria; searchParams: URLSearchParams }) => {
+    // Save to recent searches
+    const searchData: RecentSearch = {
+      from: criteria.from,
+      to: criteria.to,
+      departure: criteria.departureDate,
+      return: criteria.returnDate,
+      tripType: criteria.tripType,
+      adults: criteria.adults,
+      children: criteria.children,
+      infants: criteria.infants,
+      passengers: formatPassengersFromCounts(criteria.adults, criteria.children, criteria.infants),
+      class: criteria.flightClass,
+      isDirect: criteria.isDirect,
+      timestamp: new Date().toISOString(),
     };
 
-    // Determine debounce delay based on input length
-    const getDebounceDelay = (text: string) => {
-      if (!text || text.length < 2) return 0; // Instant for 0-1 characters
-      return 200; // Fast debounce for 2+ characters
+    const existing = recentSearches.filter((s) => recentSearchKey(s) !== recentSearchKey(searchData));
+    const updatedSearches = [searchData, ...existing].slice(0, 5);
+    setRecentSearches(updatedSearches);
+    localStorage.setItem('recentSearches', JSON.stringify(updatedSearches));
+
+    router.push(`/flightResult?${searchParams.toString()}`);
+  };
+
+  const handleSearchAgain = async (s: RecentSearch) => {
+    setActiveService('Flight Ticket');
+    setBottomTab('recent');
+
+    const criteria: FlightSearchCriteria = {
+      from: s.from,
+      to: s.to,
+      departureDate: s.departure,
+      returnDate: s.return,
+      adults: s.adults ?? 1,
+      children: s.children ?? 0,
+      infants: s.infants ?? 0,
+      flightClass: s.class ?? 'Economy',
+      tripType: s.tripType ?? 'Roundtrip',
+      markup: '0',
+      markupType: 'fixed',
+      isDirect: Boolean(s.isDirect),
     };
 
-    const fromDelay = fromLocation && !fromLocation.includes(' - ') ? getDebounceDelay(fromLocation) : 0;
-    const toDelay = toLocation && !toLocation.includes(' - ') ? getDebounceDelay(toLocation) : 0;
-    const delay = Math.max(fromDelay, toDelay);
-
-    const debounceTimer = setTimeout(() => {
-      if (fromLocation && !fromLocation.includes(' - ')) {
-        searchLocations(fromLocation, 'from');
-      }
-      if (toLocation && !toLocation.includes(' - ')) {
-        searchLocations(toLocation, 'to');
-      }
-    }, delay);
-
-    return () => clearTimeout(debounceTimer);
-  }, [fromLocation, toLocation]);
+    try {
+      const { searchParams } = await performFlightSearch(criteria);
+      router.push(`/flightResult?${searchParams.toString()}`);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to search flights. Please try again.';
+      alert(message);
+    }
+  };
 
   const services = [
     { 
@@ -625,6 +569,17 @@ export default function Dashboard() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/agency/agencies/add" 
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="font-medium">Add Agent</span>
                     </div>
                   </a>
                   <a 
@@ -1001,44 +956,33 @@ export default function Dashboard() {
       {/* Hero Section with Destination Cards */}
       <section className="relative bg-gradient-to-r from-cyan-400 to-blue-500 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          {/* Destination Cards */}
-          <div className="flex flex-col lg:flex-row justify-center items-center space-y-6 lg:space-y-0 lg:space-x-8 mb-12">
-            {/* Erbil Card */}
-            <div className="bg-white rounded-xl shadow-xl overflow-hidden transform lg:-rotate-6 hover:rotate-0 hover:scale-105 transition-all duration-300 w-72">
-              <div className="bg-gradient-to-r from-green-600 to-green-800 text-white p-5">
-                <h3 className="font-bold text-xl">Erbil</h3>
-                <p className="text-sm opacity-90">KURDISTAN REGION</p>
-              </div>
-              <div className="p-5">
-                <div className="w-full h-32 bg-gradient-to-br from-green-200 to-green-300 rounded-lg flex items-center justify-center text-green-800 font-medium">
-                  City Image
-                </div>
-              </div>
-            </div>
-
-            {/* Dubai Card */}
-            <div className="bg-white rounded-xl shadow-xl overflow-hidden hover:scale-105 transition-all duration-300 w-72">
-              <div className="bg-gradient-to-r from-amber-500 to-yellow-600 text-white p-5 text-center">
-                <h3 className="font-bold text-2xl">DUBAI</h3>
-                <p className="text-sm opacity-90">UNITED ARAB EMIRATES</p>
-              </div>
-              <div className="p-5">
-                <div className="w-full h-32 bg-gradient-to-br from-yellow-200 to-yellow-300 rounded-lg flex items-center justify-center text-yellow-800 font-medium">
-                  City Image
-                </div>
-              </div>
-            </div>
-
-            {/* Istanbul Card */}
-            <div className="bg-white rounded-xl shadow-xl overflow-hidden transform lg:rotate-6 hover:rotate-0 hover:scale-105 transition-all duration-300 w-72">
-              <div className="bg-gradient-to-r from-red-600 to-red-800 text-white p-5">
-                <h3 className="font-bold text-xl">Istanbul</h3>
-                <p className="text-sm opacity-90">TURKEY</p>
-              </div>
-              <div className="p-5">
-                <div className="w-full h-32 bg-gradient-to-br from-red-200 to-red-300 rounded-lg flex items-center justify-center text-red-800 font-medium">
-                  City Image
-                </div>
+          {/* Ads Carousel */}
+          <div className="mb-12">
+            <div className="relative mx-auto max-w-4xl overflow-hidden rounded-2xl bg-white/20">
+              <div
+                className="flex transition-transform duration-700 ease-in-out"
+                style={{ transform: `translateX(-${activeHeroAdIndex * 100}%)` }}
+              >
+                {heroAds.map((ad) => (
+                  <div key={ad.id} className="relative w-full flex-shrink-0">
+                    <div className="relative h-44 sm:h-52 md:h-60">
+                      <div className="absolute inset-0 bg-white/25" />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <Image
+                          src="/logo.png"
+                          alt={ad.label}
+                          width={160}
+                          height={160}
+                          className="h-20 w-auto"
+                          priority
+                        />
+                        <div className="mt-3 text-white text-2xl md:text-3xl font-bold drop-shadow-lg">
+                          TrueTravel
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -1081,383 +1025,23 @@ export default function Dashboard() {
       {activeService === "Flight Ticket" && (
         <section className="py-8 bg-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="bg-white rounded-xl shadow-md p-6 lg:p-8">
-            {/* Trip Type Selector */}
-            <div className="flex flex-wrap space-x-2 lg:space-x-4 mb-6">
-              {["Oneway", "Roundtrip", "Multipoint"].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setTripType(type)}
-                  className={`px-3 lg:px-4 py-2 rounded-lg font-medium transition-colors text-sm lg:text-base ${
-                    tripType === type
-                      ? 'bg-[#155dfc] text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-
-            {/* Search Form */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-              {/* From */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={fromLocation}
-                    onChange={(e) => setFromLocation(e.target.value)}
-                    onFocus={() => {
-                      // Show popular cities or current suggestions
-                      if (!fromLocation) {
-                        setFromSuggestions(POPULAR_CITIES);
-                        setShowFromDropdown(true);
-                      } else if (fromSuggestions.length > 0) {
-                        setShowFromDropdown(true);
-                      }
-                    }}
-                    onBlur={() => setTimeout(() => setShowFromDropdown(false), 200)}
-                    placeholder="Type city or airport (e.g., Erbil, IST)"
-                    className="w-full px-4 py-3 pr-20 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
-                  />
-                  <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#155dfc]">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                    </svg>
-                  </button>
-                  {isLoadingFrom && (
-                    <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                    </div>
-                  )}
-                  {/* From Dropdown */}
-                  {showFromDropdown && fromSuggestions.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {fromSuggestions.map((location, index) => (
-                        <button
-                          key={index}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setFromLocation(location.displayText);
-                            setShowFromDropdown(false);
-                          }}
-                          className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
-                        >
-                          <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4 text-[#155dfc] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                            </svg>
-                            <div className="flex-1">
-                              <div className="text-sm font-medium text-gray-900">{location.code} - {location.name}</div>
-                              <div className="text-xs text-gray-500">{location.city}, {location.country}</div>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Swap Button */}
-              <div className="flex items-end">
-                <button
-                  onClick={swapLocations}
-                  className="w-full mb-3 p-3 bg-[#155dfc] text-white rounded-lg hover:bg-[#155dfc]/90 transition-colors flex items-center justify-center"
-                >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/>
-                  </svg>
-                </button>
-              </div>
-
-              {/* To */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={toLocation}
-                    onChange={(e) => setToLocation(e.target.value)}
-                    onFocus={() => {
-                      // Show popular cities or current suggestions
-                      if (!toLocation) {
-                        setToSuggestions(POPULAR_CITIES);
-                        setShowToDropdown(true);
-                      } else if (toSuggestions.length > 0) {
-                        setShowToDropdown(true);
-                      }
-                    }}
-                    onBlur={() => setTimeout(() => setShowToDropdown(false), 200)}
-                    placeholder="Type city or airport (e.g., Istanbul, DXB)"
-                    className="w-full px-4 py-3 pr-20 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
-                  />
-                  <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#155dfc]">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                    </svg>
-                  </button>
-                  {isLoadingTo && (
-                    <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                    </div>
-                  )}
-                  {/* To Dropdown */}
-                  {showToDropdown && toSuggestions.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {toSuggestions.map((location, index) => (
-                        <button
-                          key={index}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setToLocation(location.displayText);
-                            setShowToDropdown(false);
-                          }}
-                          className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
-                        >
-                          <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4 text-[#155dfc] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                            </svg>
-                            <div className="flex-1">
-                              <div className="text-sm font-medium text-gray-900">{location.code} - {location.name}</div>
-                              <div className="text-xs text-gray-500">{location.city}, {location.country}</div>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Departure Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Departure Date</label>
-                <input
-                  type="date"
-                  value={departureDate}
-                  onChange={(e) => setDepartureDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
-                  required
-                />
-              </div>
-
-              {/* Return Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Return Date {tripType === "Oneway" && <span className="text-gray-400">(Optional)</span>}
-                </label>
-                <input
-                  type="date"
-                  value={returnDate}
-                  onChange={(e) => setReturnDate(e.target.value)}
-                  min={departureDate || new Date().toISOString().split('T')[0]}
-                  disabled={tripType === "Oneway"}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
-                />
-              </div>
-            </div>
-
-            {/* Additional Options */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-                <select
-                  value={flightClass}
-                  onChange={(e) => setFlightClass(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900"
-                >
-                  <option>Economy</option>
-                  <option>Business</option>
-                </select>
-              </div>
-
-              {/* Passengers Selector */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Passengers</label>
-                <button
-                  type="button"
-                  onClick={() => setShowPassengerDropdown(!showPassengerDropdown)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-left bg-white flex items-center justify-between text-gray-900"
-                >
-                  <span>{getPassengerText()}</span>
-                  <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-
-                {/* Passenger Dropdown */}
-                {showPassengerDropdown && (
-                  <div className="absolute z-20 mt-2 w-full bg-white border border-gray-300 rounded-lg shadow-lg p-4">
-                    {/* Adults */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <p className="font-medium text-sm">Adults</p>
-                        <p className="text-xs text-gray-500">12+ years</p>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <button
-                          type="button"
-                          onClick={() => setAdults(Math.max(1, adults - 1))}
-                          className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
-                        >
-                          −
-                        </button>
-                        <span className="w-8 text-center font-medium">{adults}</span>
-                        <button
-                          type="button"
-                          onClick={() => setAdults(Math.min(9, adults + 1))}
-                          className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Children */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <p className="font-medium text-sm">Children</p>
-                        <p className="text-xs text-gray-500">2-11 years</p>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <button
-                          type="button"
-                          onClick={() => setChildren(Math.max(0, children - 1))}
-                          className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
-                        >
-                          −
-                        </button>
-                        <span className="w-8 text-center font-medium">{children}</span>
-                        <button
-                          type="button"
-                          onClick={() => setChildren(Math.min(9, children + 1))}
-                          className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Infants */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <p className="font-medium text-sm">Infants</p>
-                        <p className="text-xs text-gray-500">Under 2 years</p>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <button
-                          type="button"
-                          onClick={() => setInfants(Math.max(0, infants - 1))}
-                          className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
-                        >
-                          −
-                        </button>
-                        <span className="w-8 text-center font-medium">{infants}</span>
-                        <button
-                          type="button"
-                          onClick={() => setInfants(Math.min(adults, infants + 1))}
-                          className="w-8 h-8 rounded-full border-2 border-blue-500 text-blue-500 hover:bg-blue-50 font-bold"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {infants > adults && (
-                      <p className="text-xs text-red-500 mb-2">Infants cannot exceed adults</p>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => setShowPassengerDropdown(false)}
-                      className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 font-medium text-sm"
-                    >
-                      Done
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Markup */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Markup</label>
-                <div className="flex space-x-2">
-                  <input
-                    type="number"
-                    value={markup}
-                    onChange={(e) => setMarkup(e.target.value)}
-                    placeholder="0"
-                    min="0"
-                    step="0.01"
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900 placeholder-gray-400"
-                  />
-                  <select
-                    value={markupType}
-                    onChange={(e) => setMarkupType(e.target.value)}
-                    className="px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900"
-                  >
-                    <option value="fixed">$</option>
-                    <option value="percentage">%</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Search Button */}
-              <button
-                onClick={searchFlights}
-                disabled={isSearching}
-                className="bg-[#155dfc] text-white py-3 px-6 rounded-lg hover:bg-[#155dfc]/90 transition-colors font-medium flex items-center justify-center space-x-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isSearching ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Searching...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-                    </svg>
-                    <span>Search Flight</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Error Message */}
-            {searchError && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
-                <svg className="w-5 h-5 text-red-500 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <div>
-                  <p className="text-sm font-medium text-red-800">Search Error</p>
-                  <p className="text-sm text-red-700">{searchError}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Additional Options */}
-            <div className="flex flex-wrap items-center space-x-6">
-              <label className="flex items-center space-x-2">
-                <input 
-                  type="checkbox" 
-                  checked={isDirect}
-                  onChange={(e) => setIsDirect(e.target.checked)}
-                  className="rounded" 
-                />
-                <span className="text-sm text-gray-700">Direct Flights Only</span>
-              </label>
-            </div>
-            </div>
+            <FlightSearchForm
+              initialData={{
+                from: fromLocation,
+                to: toLocation,
+                departureDate,
+                returnDate,
+                adults,
+                children,
+                infants,
+                flightClass,
+                tripType,
+                markup: markup || '0',
+                markupType: markupType === 'percentage' ? 'percentage' : 'fixed',
+                isDirect,
+              }}
+              onSearchComplete={handleFlightSearchComplete}
+            />
           </div>
         </section>
       )}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import HeaderUserMenu from '@/components/HeaderUserMenu';
+import { copyTableToClipboard, exportTableToExcel, exportTableToPdf, printTable } from '@/lib/tableExport';
 
 export default function ReportsFlightTicketSalesPage() {
   const router = useRouter();
@@ -66,6 +67,50 @@ export default function ReportsFlightTicketSalesPage() {
     </svg>
   );
 
+  const exportHeaders = [
+    'Transaction time',
+    'Status',
+    'Company',
+    'Company Code',
+    'Ticket Number',
+    'Airline',
+    'PNR',
+    'INT DOM',
+    'Route',
+    'Flight Date',
+    'Passenger',
+    'Base Fare',
+    'Airport Tax',
+    'Other Taxes',
+    'Agency Com.',
+    'Sub Agency Com.',
+    'Penalty',
+    'Total',
+    'Payment Type',
+    'Bank',
+    'User',
+    'Simulator',
+    'Invoice',
+  ];
+
+  const handleExport = async (type: 'copy' | 'excel' | 'pdf' | 'print') => {
+    const rows: Record<string, unknown>[] = [];
+
+    if (type === 'print') {
+      printTable('#export-table', 'Report - Flight Ticket Sales');
+      return;
+    }
+    if (type === 'copy') {
+      await copyTableToClipboard(rows, exportHeaders);
+      return;
+    }
+    if (type === 'excel') {
+      await exportTableToExcel('report-flight-ticket-sales.xlsx', rows, exportHeaders);
+      return;
+    }
+    await exportTableToPdf('report-flight-ticket-sales.pdf', 'Report - Flight Ticket Sales', rows, exportHeaders);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -123,6 +168,14 @@ export default function ReportsFlightTicketSalesPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
+                    </div>
+                  </a>
+                  <a href="/agency/agencies/add" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="font-medium">Add Agent</span>
                     </div>
                   </a>
                   <a href="/agency/sales-representatives" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
@@ -607,7 +660,7 @@ export default function ReportsFlightTicketSalesPage() {
                   <button
                     type="button"
                     className="inline-flex items-center gap-2 border border-blue-400 text-blue-500 hover:bg-blue-50 px-6 py-3 rounded-md font-medium transition-colors"
-                    onClick={() => console.log('Excel')}
+                    onClick={() => void handleExport('excel')}
                   >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm1 7V3.5L18.5 9H15zM8.2 17l1.5-2.2L8.3 13h1.8l.7 1.1.7-1.1h1.8l-1.4 1.8L13.3 17h-1.8l-.8-1.2-.8 1.2H8.2z" />
@@ -713,28 +766,44 @@ export default function ReportsFlightTicketSalesPage() {
             </svg>
           </button>
 
-          <button type="button" className="inline-flex items-center gap-2 px-6 py-3 border border-teal-400 text-teal-600 bg-white rounded-lg hover:bg-teal-50 transition-colors">
+          <button
+            type="button"
+            onClick={() => void handleExport('copy')}
+            className="inline-flex items-center gap-2 px-6 py-3 border border-teal-400 text-teal-600 bg-white rounded-lg hover:bg-teal-50 transition-colors"
+          >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm4 4H8c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 18H8V7h12v16z" />
             </svg>
             <span className="font-semibold">COPY</span>
           </button>
 
-          <button type="button" className="inline-flex items-center gap-2 px-6 py-3 border border-purple-400 text-purple-600 bg-white rounded-lg hover:bg-purple-50 transition-colors">
+          <button
+            type="button"
+            onClick={() => void handleExport('pdf')}
+            className="inline-flex items-center gap-2 px-6 py-3 border border-purple-400 text-purple-600 bg-white rounded-lg hover:bg-purple-50 transition-colors"
+          >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 2h9l5 5v15c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2zm8 7V3.5L18.5 9H14z" />
             </svg>
             <span className="font-semibold">PDF</span>
           </button>
 
-          <button type="button" className="inline-flex items-center gap-2 px-6 py-3 border border-gray-400 text-gray-700 bg-white rounded-lg hover:bg-gray-50 transition-colors">
+          <button
+            type="button"
+            onClick={() => void handleExport('print')}
+            className="inline-flex items-center gap-2 px-6 py-3 border border-gray-400 text-gray-700 bg-white rounded-lg hover:bg-gray-50 transition-colors"
+          >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-13H5V3h14v3z" />
             </svg>
             <span className="font-semibold">PRINT</span>
           </button>
 
-          <button type="button" className="inline-flex items-center gap-2 px-6 py-3 border border-yellow-400 text-yellow-700 bg-white rounded-lg hover:bg-yellow-50 transition-colors">
+          <button
+            type="button"
+            onClick={() => void handleExport('excel')}
+            className="inline-flex items-center gap-2 px-6 py-3 border border-yellow-400 text-yellow-700 bg-white rounded-lg hover:bg-yellow-50 transition-colors"
+          >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" />
             </svg>
@@ -748,7 +817,11 @@ export default function ReportsFlightTicketSalesPage() {
             <span className="font-semibold">ARKMAN</span>
           </button>
 
-          <button type="button" className="inline-flex items-center gap-2 px-6 py-3 border border-blue-400 text-blue-600 bg-white rounded-lg hover:bg-blue-50 transition-colors">
+          <button
+            type="button"
+            onClick={() => void handleExport('excel')}
+            className="inline-flex items-center gap-2 px-6 py-3 border border-blue-400 text-blue-600 bg-white rounded-lg hover:bg-blue-50 transition-colors"
+          >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" />
             </svg>
@@ -759,7 +832,7 @@ export default function ReportsFlightTicketSalesPage() {
         {/* Results Table */}
         <div className="mt-6 bg-white border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-[1600px] w-full">
+            <table id="export-table" className="min-w-[1600px] w-full">
               <thead>
                 <tr className="bg-gray-600 text-white">
                   <th className="px-4 py-5 text-left font-semibold border-r border-gray-500">Transaction time</th>

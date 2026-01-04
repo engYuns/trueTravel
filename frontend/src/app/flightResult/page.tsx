@@ -9,6 +9,22 @@ import HeaderUserMenu from '@/components/HeaderUserMenu';
 function FlightResultContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const didInitialLoadRef = useRef(false);
+
+  const parseSegmentsParam = (value: string) => {
+    const raw = String(value || '').trim();
+    if (!raw) return [];
+    return raw
+      .split('|')
+      .map((chunk) => chunk.split('~'))
+      .map(([from, to, departureDate]) => ({
+        from: String(from || '').trim(),
+        to: String(to || '').trim(),
+        departureDate: String(departureDate || '').trim(),
+      }))
+      .filter((s) => Boolean(s.from) && Boolean(s.to) && Boolean(s.departureDate));
+  };
   
   const [showAgencyDropdown, setShowAgencyDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -48,6 +64,13 @@ function FlightResultContent() {
   const [markupType, setMarkupType] = useState<'fixed' | 'percentage'>(
     (searchParams.get('markupType') as 'fixed' | 'percentage') || 'fixed'
   );
+
+  const isMultipointTrip = String(tripType) === 'Multipoint';
+  const [multiPointSegments, setMultiPointSegments] = useState<any[]>([]);
+  const [multiPointLegs, setMultiPointLegs] = useState<any[]>([]);
+  const [activeMultiPointLegIndex, setActiveMultiPointLegIndex] = useState(0);
+  const [selectedMultiPointFlights, setSelectedMultiPointFlights] = useState<Record<number, any>>({});
+  const [selectedMultiPointFares, setSelectedMultiPointFares] = useState<Record<number, FareKey>>({});
   
   // Combined search criteria object for compatibility
   const searchCriteria = {
@@ -89,8 +112,16 @@ function FlightResultContent() {
   const [durationRange, setDurationRange] = useState({ min: 0, max: 1440 });
   
   // Sorting and display
-  const [sortBy, setSortBy] = useState('price');
+  const [priceSort, setPriceSort] = useState<'price_asc' | 'price_desc'>('price_asc');
+  const [timeSort, setTimeSort] = useState<'none' | 'time_asc' | 'time_desc'>('none');
+  const [durationSort, setDurationSort] = useState<'none' | 'duration_asc' | 'duration_desc'>('none');
   const [showCriteria, setShowCriteria] = useState(true);
+
+  const resetSortDefaults = () => {
+    setPriceSort('price_asc');
+    setTimeSort('none');
+    setDurationSort('none');
+  };
   
   // Selected flights for roundtrip
   const [selectedOutboundFlight, setSelectedOutboundFlight] = useState<any>(null);
@@ -98,11 +129,23 @@ function FlightResultContent() {
   const [showReturnFlights, setShowReturnFlights] = useState(false);
   const [returnFlights, setReturnFlights] = useState<any[]>([]);
 
+  useEffect(() => {
+    if (!isMultipointTrip) return;
+    const leg = multiPointLegs?.[activeMultiPointLegIndex];
+    if (leg?.flights) setFlights(leg.flights);
+  }, [isMultipointTrip, activeMultiPointLegIndex, multiPointLegs]);
+
   // Per-flight hidden details (Trip Details)
   const [openTripDetailsByKey, setOpenTripDetailsByKey] = useState<Record<string, boolean>>({});
   
   // Booking modal state
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [selectedOutboundFare, setSelectedOutboundFare] = useState<'saver' | 'flex' | 'plus'>('saver');
+  const [selectedReturnFare, setSelectedReturnFare] = useState<'saver' | 'flex' | 'plus'>('saver');
+
+  type FareKey = 'saver' | 'flex' | 'plus';
+  const FARE_KEYS: FareKey[] = ['saver', 'flex', 'plus'];
 
   const mergeCarrierNames = (next: any) => {
     if (!next || typeof next !== 'object') return;
@@ -199,6 +242,14 @@ function FlightResultContent() {
     return `${h}h ${r}m`;
   };
 
+  function ClockIcon({ className = 'w-4 h-4' }: { className?: string }) {
+    return (
+      <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z" />
+      </svg>
+    );
+  }
+
   const formatIsoDurationToPretty = (iso: string) => {
     const s = String(iso || '');
     const h = Number.parseInt(s.match(/(\d+)H/)?.[1] || '0');
@@ -240,6 +291,112 @@ function FlightResultContent() {
     if (typeof quantity === 'number') return `${quantity} PC`;
     if (typeof weight === 'number' && weightUnit) return `${weight} ${String(weightUnit).toUpperCase()}`;
     return null;
+  };
+
+  const getOfferId = (flight: any): string => {
+    const id = flight?.amadeus_id || flight?.originalOffer?.id;
+    return id ? String(id) : getFlightKey(flight);
+  };
+
+  const getOutboundItinerarySignature = (flight: any): string => {
+    const segs: any[] = Array.isArray(flight?.originalOffer?.itineraries?.[0]?.segments)
+      ? flight.originalOffer.itineraries[0].segments
+      : [];
+    return segs
+      .map((s: any) => {
+        const dep = `${s?.departure?.iataCode || ''}@${s?.departure?.at || ''}`;
+        const arr = `${s?.arrival?.iataCode || ''}@${s?.arrival?.at || ''}`;
+        const carrier = `${s?.carrierCode || ''}${s?.number || ''}`;
+        return `${carrier}:${dep}>${arr}`;
+      })
+      .filter(Boolean)
+      .join('|');
+  };
+
+  const getFareOptionFlights = (selectedFlight: any, pool: any[]): any[] => {
+    if (!selectedFlight) return [];
+    const sig = getOutboundItinerarySignature(selectedFlight);
+    const inPool = Array.isArray(pool) ? pool : [];
+    const candidates = inPool.filter((f) => getOutboundItinerarySignature(f) === sig);
+    const sorted = [...candidates].sort((a, b) => {
+      const ap = Number(a?.price ?? 0);
+      const bp = Number(b?.price ?? 0);
+      if (ap !== bp) return ap - bp;
+      return String(getOfferId(a)).localeCompare(String(getOfferId(b)));
+    });
+
+    const unique: any[] = [];
+    const seen = new Set<string>();
+    for (const f of sorted) {
+      const id = getOfferId(f);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      unique.push(f);
+      if (unique.length >= 3) break;
+    }
+
+    const selectedId = getOfferId(selectedFlight);
+    if (!unique.some((f) => getOfferId(f) === selectedId)) {
+      if (unique.length < 3) unique.push(selectedFlight);
+      else unique[unique.length - 1] = selectedFlight;
+    }
+
+    // Stable order: keep cheapest first, but ensure selected isn't shuffled out.
+    return [...unique].sort((a, b) => {
+      const ap = Number(a?.price ?? 0);
+      const bp = Number(b?.price ?? 0);
+      if (ap !== bp) return ap - bp;
+      return String(getOfferId(a)).localeCompare(String(getOfferId(b)));
+    });
+  };
+
+  const buildFareCardsFromFlights = (optionFlights: any[]) => {
+    const accents: Record<FareKey, string> = {
+      saver: 'border-l-4 border-yellow-200',
+      flex: 'border-l-4 border-pink-200',
+      plus: 'border-l-4 border-teal-200',
+    };
+
+    return (optionFlights || []).slice(0, 3).map((flight, idx) => {
+      const key = FARE_KEYS[idx] || 'saver';
+      const offer = flight?.originalOffer;
+      const cabin = offer?.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.cabin;
+      const cabinLabel = String(flight?.class || cabin || 'Economy').replace(/_/g, ' ');
+      const brand =
+        offer?.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.brandedFare ||
+        offer?.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.fareBasis ||
+        '';
+
+      const title = brand
+        ? `${cabinLabel} ${String(brand)}`
+        : `${cabinLabel} Option ${idx + 1}`;
+
+      const checkedBags = getCheckedBaggageLabel(flight);
+      const bookingClass = offer?.travelerPricings?.[0]?.fareDetailsBySegment?.[0]?.class;
+      const refundable = offer?.pricingOptions?.refundableFare;
+
+      const features = [
+        checkedBags ? `Checked baggage: ${checkedBags}` : null,
+        bookingClass ? `Booking class: ${String(bookingClass)}` : null,
+        typeof refundable === 'boolean' ? (refundable ? 'Refundable fare' : 'Non-refundable fare') : null,
+      ].filter(Boolean) as string[];
+
+      return {
+        key: key as FareKey,
+        title,
+        accent: accents[key as FareKey] || accents.saver,
+        price: Number(flight?.price ?? 0),
+        features: features.length ? features : ['Fare details from Amadeus offer'],
+        flight,
+      };
+    });
+  };
+
+  const getDefaultFareKeyForFlight = (selectedFlight: any, optionFlights: any[]): FareKey => {
+    const cards = buildFareCardsFromFlights(optionFlights);
+    const selectedId = getOfferId(selectedFlight);
+    const found = cards.find((c) => getOfferId(c.flight) === selectedId);
+    return (found?.key as FareKey) || 'saver';
   };
 
   // Helper functions for header
@@ -299,6 +456,127 @@ function FlightResultContent() {
     };
   };
 
+  const searchMultiPoint = async (criteriaOverride?: any) => {
+    setIsLoading(true);
+    setError('');
+    resetSortDefaults();
+
+    try {
+      let activeCriteria = criteriaOverride || searchCriteria;
+      try {
+        const stored = localStorage.getItem('flightSearchCriteria');
+        if (!criteriaOverride && stored) activeCriteria = JSON.parse(stored);
+      } catch {
+        // ignore
+      }
+
+      const segmentsFromCriteria = Array.isArray(activeCriteria?.segments) ? activeCriteria.segments : null;
+      const segmentsFromUrl = parseSegmentsParam(searchParams.get('segments') || '');
+      const segments = (segmentsFromCriteria && segmentsFromCriteria.length > 0 ? segmentsFromCriteria : segmentsFromUrl) || [];
+
+      if (!Array.isArray(segments) || segments.length < 2) {
+        setMultiPointSegments([]);
+        setMultiPointLegs([]);
+        setFlights([]);
+        setError('Please provide at least 2 trip legs for multipoint search');
+        return;
+      }
+
+      setMultiPointSegments(segments);
+      setSelectedMultiPointFlights({});
+      setSelectedMultiPointFares({});
+      setActiveMultiPointLegIndex(0);
+
+      const includedAirlineCodes = Array.isArray(activeCriteria?.preferredAirlines)
+        ? activeCriteria.preferredAirlines
+        : Array.isArray(activeCriteria?.includedAirlineCodes)
+          ? activeCriteria.includedAirlineCodes
+          : undefined;
+
+      const requestBody = {
+        segments,
+        adults: Number(activeCriteria?.adults) || parseInt(String(activeCriteria?.passengers || '').match(/(\d+)\s*Adult/)?.[1] || '1'),
+        children: Number(activeCriteria?.children) || parseInt(String(activeCriteria?.passengers || '').match(/(\d+)\s*Child/)?.[1] || '0'),
+        infants: Number(activeCriteria?.infants) || parseInt(String(activeCriteria?.passengers || '').match(/(\d+)\s*Infant/)?.[1] || '0'),
+        travelClass: activeCriteria?.class ?? activeCriteria?.flightClass ?? flightClass,
+        nonStop: Boolean(activeCriteria?.isDirect),
+        preferredAirlines: includedAirlineCodes,
+        currencyCode: 'USD',
+        maxResults: 50,
+      };
+
+      const response = await fetch('/api/flights/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        if (response.status === 429) {
+          setError(errorData?.error || 'Rate limit exceeded. Please try again shortly.');
+          return;
+        }
+        throw new Error(errorData?.error || 'Failed to search flights');
+      }
+
+      const data = await response.json();
+
+      if (!data?.success || !data?.data || !Array.isArray(data?.data?.legs)) {
+        throw new Error('No flights found');
+      }
+
+      const mk = String(activeCriteria?.markup ?? markup ?? '0');
+      const mkType = String(activeCriteria?.markupType ?? markupType ?? 'fixed');
+      setMarkup(mk);
+      setMarkupType(mkType === 'percentage' ? 'percentage' : 'fixed');
+
+      const legs = (data.data.legs || []).map((leg: any) => ({
+        ...leg,
+        flights: (leg?.flights || []).map((f: any) => withMarkupFlight(f, mk, mkType)),
+      }));
+
+      setMultiPointLegs(legs);
+      setFlights(legs?.[0]?.flights || []);
+
+      if (data.dictionaries?.carriers) {
+        mergeCarrierNames(data.dictionaries.carriers);
+        try {
+          const storedCarrierNames = localStorage.getItem('flightCarrierNames');
+          const existing = storedCarrierNames ? JSON.parse(storedCarrierNames) : {};
+          localStorage.setItem('flightCarrierNames', JSON.stringify({ ...existing, ...data.dictionaries.carriers }));
+        } catch {
+          // ignore
+        }
+      }
+
+      // Persist grouped results for refreshes
+      try {
+        localStorage.setItem('flightSearchResults', JSON.stringify({ mode: 'Multipoint', legs }));
+        localStorage.setItem(
+          'flightSearchCriteria',
+          JSON.stringify({
+            ...activeCriteria,
+            tripType: 'Multipoint',
+            segments,
+            markup: mk,
+            markupType: mkType,
+            class: activeCriteria?.class ?? activeCriteria?.flightClass,
+          })
+        );
+      } catch {
+        // ignore
+      }
+    } catch (e: any) {
+      console.error('Multipoint search error:', e);
+      setMultiPointLegs([]);
+      setFlights([]);
+      setError(e?.message || 'Failed to search flights');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Function to search flights with new date
   const searchFlightsForDate = async (
     newDepartureDate: string,
@@ -307,6 +585,7 @@ function FlightResultContent() {
   ) => {
     setIsLoading(true);
     setError('');
+    resetSortDefaults();
 
     try {
       let activeCriteria = criteriaOverride || searchCriteria;
@@ -320,6 +599,12 @@ function FlightResultContent() {
       const originCode = String(activeCriteria?.from || '').split(' - ')[0].trim();
       const destinationCode = String(activeCriteria?.to || '').split(' - ')[0].trim();
 
+      const includedAirlineCodes = Array.isArray(activeCriteria?.preferredAirlines)
+        ? activeCriteria.preferredAirlines
+        : Array.isArray(activeCriteria?.includedAirlineCodes)
+          ? activeCriteria.includedAirlineCodes
+          : undefined;
+
       const requestBody = {
         originLocationCode: originCode,
         destinationLocationCode: destinationCode,
@@ -329,6 +614,7 @@ function FlightResultContent() {
         infants: parseInt(String(activeCriteria?.passengers || '').match(/(\d+)\s*Infant/)?.[1] || '0'),
         travelClass: activeCriteria?.class ?? activeCriteria?.flightClass,
         nonStop: Boolean(activeCriteria?.isDirect),
+        preferredAirlines: includedAirlineCodes,
         currencyCode: 'USD',
         maxResults: 50,
       };
@@ -493,6 +779,12 @@ function FlightResultContent() {
       const originCode = searchCriteria.to.split(' - ')[0].trim();
       const destinationCode = searchCriteria.from.split(' - ')[0].trim();
 
+      const includedAirlineCodes = Array.isArray((searchCriteria as any)?.preferredAirlines)
+        ? (searchCriteria as any).preferredAirlines
+        : Array.isArray((searchCriteria as any)?.includedAirlineCodes)
+          ? (searchCriteria as any).includedAirlineCodes
+          : undefined;
+
       const requestBody = {
         originLocationCode: originCode,
         destinationLocationCode: destinationCode,
@@ -502,6 +794,7 @@ function FlightResultContent() {
         infants: parseInt(searchCriteria.passengers.match(/(\d+)\s*Infant/)?.[1] || '0'),
         travelClass: searchCriteria.class,
         nonStop: searchCriteria.isDirect,
+        preferredAirlines: includedAirlineCodes,
         currencyCode: 'USD',
         maxResults: 50,
       };
@@ -540,12 +833,21 @@ function FlightResultContent() {
 
   // Handle Search Flights button - perform new search with current criteria
   const handleSearchFlights = async () => {
+    resetSortDefaults();
     // Reset selections
     setSelectedOutboundFlight(null);
     setSelectedReturnFlight(null);
     setShowReturnFlights(false);
     setReturnFlights([]);
+
+    setSelectedMultiPointFlights({});
+    setActiveMultiPointLegIndex(0);
     
+    if (searchCriteria.tripType === 'Multipoint') {
+      await searchMultiPoint(searchCriteria);
+      return;
+    }
+
     // Perform new search with current criteria
     await searchFlightsForDate(searchCriteria.departureDate, searchCriteria.returnDate, searchCriteria);
     
@@ -557,14 +859,222 @@ function FlightResultContent() {
 
   // Handle BUY NOW button - confirm and continue to booking
   const handleBuyNow = () => {
+    if (searchCriteria.tripType === 'Multipoint') {
+      const legCount = multiPointLegs?.length || 0;
+      if (legCount < 2) return;
+
+      const missingIndex = Array.from({ length: legCount }).findIndex((_, i) => !selectedMultiPointFlights?.[i]);
+      if (missingIndex !== -1) {
+        setError(`Please select a flight for leg ${missingIndex + 1}`);
+        return;
+      }
+
+      // Default offer selection per leg (3 cards derived from API offers)
+      const defaults: Record<number, FareKey> = {};
+      for (let i = 0; i < legCount; i += 1) {
+        const legSelected = selectedMultiPointFlights[i];
+        const legPool = multiPointLegs?.[i]?.flights || [];
+        const options = getFareOptionFlights(legSelected, legPool);
+        defaults[i] = getDefaultFareKeyForFlight(legSelected, options);
+      }
+      setSelectedMultiPointFares(defaults);
+      setShowBookingModal(true);
+      return;
+    }
+
     if (!selectedOutboundFlight) return;
     if (searchCriteria.tripType === 'Roundtrip' && !selectedReturnFlight) return;
+
+    const outboundOptions = getFareOptionFlights(selectedOutboundFlight, flights);
+    setSelectedOutboundFare(getDefaultFareKeyForFlight(selectedOutboundFlight, outboundOptions));
+
+    if (selectedReturnFlight) {
+      const returnOptions = getFareOptionFlights(selectedReturnFlight, returnFlights);
+      setSelectedReturnFare(getDefaultFareKeyForFlight(selectedReturnFlight, returnOptions));
+    } else {
+      setSelectedReturnFare('saver');
+    }
     setShowBookingModal(true);
+  };
+
+  const handleFareContinue = async () => {
+    if (searchCriteria.tripType === 'Multipoint') {
+      const legCount = multiPointLegs?.length || 0;
+      if (legCount < 2) return;
+
+      const missingIndex = Array.from({ length: legCount }).findIndex((_, i) => !selectedMultiPointFlights?.[i]);
+      if (missingIndex !== -1) {
+        setError(`Please select a flight for leg ${missingIndex + 1}`);
+        return;
+      }
+
+      try {
+        setPricingLoading(true);
+
+        const legs = Array.from({ length: legCount }).map((_, i) => {
+          const legSelected = selectedMultiPointFlights[i];
+          const legPool = multiPointLegs?.[i]?.flights || [];
+          const options = getFareOptionFlights(legSelected, legPool);
+          const cards = buildFareCardsFromFlights(options);
+          const selectedKey = selectedMultiPointFares?.[i] || getDefaultFareKeyForFlight(legSelected, options);
+          const selectedCard = cards.find((c) => c.key === selectedKey) || cards[0];
+          const flightForBooking = selectedCard?.flight || legSelected;
+
+          return {
+            legIndex: i,
+            segment: multiPointLegs?.[i]?.segment,
+            flight: flightForBooking,
+            legClass: {
+              key: selectedCard?.key,
+              name: selectedCard?.title,
+              title: selectedCard?.title,
+              price: selectedCard?.price,
+              offerId: getOfferId(flightForBooking),
+            },
+          };
+        });
+
+        const total = legs.reduce((sum, l) => sum + (Number(l?.legClass?.price) || 0), 0);
+        const bookingData = {
+          legs,
+          total,
+          searchCriteria: {
+            ...searchCriteria,
+            segments: multiPointSegments,
+          },
+          pricing: null,
+        };
+
+        try {
+          localStorage.setItem('bookingData', JSON.stringify(bookingData));
+        } catch {
+          // ignore
+        }
+
+        setShowBookingModal(false);
+        router.push('/booking');
+      } finally {
+        setPricingLoading(false);
+      }
+      return;
+    }
+
+    if (!selectedOutboundFlight) return;
+
+    const outboundOptions = getFareOptionFlights(selectedOutboundFlight, flights);
+    const outboundCards = buildFareCardsFromFlights(outboundOptions);
+    const outboundSelected = outboundCards.find((c) => c.key === selectedOutboundFare) || outboundCards[0];
+    const outboundFlightForBooking = outboundSelected?.flight || selectedOutboundFlight;
+
+    const returnOptions = selectedReturnFlight ? getFareOptionFlights(selectedReturnFlight, returnFlights) : [];
+    const returnCards = buildFareCardsFromFlights(returnOptions);
+    const returnSelected = selectedReturnFlight
+      ? returnCards.find((c) => c.key === selectedReturnFare) || returnCards[0]
+      : null;
+    const returnFlightForBooking = returnSelected?.flight || selectedReturnFlight;
+
+    setPricingLoading(true);
+    try {
+      const outboundOffer = outboundFlightForBooking?.originalOffer;
+      const returnOffer = returnFlightForBooking?.originalOffer;
+
+      const pricingResponse = await fetch('/api/flights/pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outboundOffer,
+          returnOffer,
+        }),
+      });
+
+      const pricedJson = await pricingResponse.json().catch(() => null);
+
+      const total = (outboundSelected?.price || 0) + (returnSelected?.price || 0);
+
+      const bookingData = {
+        outbound: outboundFlightForBooking,
+        return: returnFlightForBooking,
+        outboundClass: {
+          key: outboundSelected?.key,
+          name: outboundSelected?.title,
+          title: outboundSelected?.title,
+          price: outboundSelected?.price,
+          offerId: getOfferId(outboundFlightForBooking),
+        },
+        returnClass: returnFlightForBooking
+          ? {
+              key: returnSelected?.key,
+              name: returnSelected?.title,
+              title: returnSelected?.title,
+              price: returnSelected?.price,
+              offerId: getOfferId(returnFlightForBooking),
+            }
+          : null,
+        total,
+        searchCriteria,
+        pricing: pricingResponse.ok ? pricedJson : null,
+      };
+
+      localStorage.setItem('bookingData', JSON.stringify(bookingData));
+      setShowBookingModal(false);
+      router.push('/booking');
+    } catch (e) {
+      // Fallback: still proceed with local data
+      const total = (outboundSelected?.price || 0) + (returnSelected?.price || 0);
+
+      const bookingData = {
+        outbound: outboundFlightForBooking,
+        return: returnFlightForBooking,
+        outboundClass: {
+          key: outboundSelected?.key,
+          name: outboundSelected?.title,
+          title: outboundSelected?.title,
+          price: outboundSelected?.price,
+          offerId: getOfferId(outboundFlightForBooking),
+        },
+        returnClass: returnFlightForBooking
+          ? {
+              key: returnSelected?.key,
+              name: returnSelected?.title,
+              title: returnSelected?.title,
+              price: returnSelected?.price,
+              offerId: getOfferId(returnFlightForBooking),
+            }
+          : null,
+        total,
+        searchCriteria,
+        pricing: null,
+      };
+      localStorage.setItem('bookingData', JSON.stringify(bookingData));
+      setShowBookingModal(false);
+      router.push('/booking');
+    } finally {
+      setPricingLoading(false);
+    }
   };
 
   // Handle Select Flight button
   const handleSelectFlight = async (flight: any) => {
-    // If it's a one-way trip or return flights are already shown, just select the flight
+    if (searchCriteria.tripType === 'Multipoint') {
+      setSelectedOutboundFlight(null);
+      setSelectedReturnFlight(null);
+      setShowReturnFlights(false);
+      setReturnFlights([]);
+
+      setSelectedMultiPointFlights((prev) => ({
+        ...(prev || {}),
+        [activeMultiPointLegIndex]: flight,
+      }));
+
+      const lastIndex = Math.max(0, (multiPointLegs?.length || 0) - 1);
+      const nextIndex = Math.min(activeMultiPointLegIndex + 1, lastIndex);
+      if (nextIndex !== activeMultiPointLegIndex) {
+        setActiveMultiPointLegIndex(nextIndex);
+      }
+      return;
+    }
+
+    // If it's a one-way trip, just select the flight.
     if (searchCriteria.tripType !== 'Roundtrip') {
       setSelectedOutboundFlight(flight);
       setSelectedReturnFlight(null);
@@ -573,23 +1083,16 @@ function FlightResultContent() {
       return;
     }
 
-    // For roundtrip: if this is outbound flight selection
+    // Roundtrip flow
     if (!showReturnFlights) {
       setSelectedOutboundFlight(flight);
+      setSelectedReturnFlight(null);
       setShowReturnFlights(true);
-      
-      // Search for return flights (reverse direction)
-      // Pass the selected flight so sorting can happen
       await searchReturnFlights(flight);
-    } else {
-      // This is return flight selection
-      setSelectedReturnFlight(flight);
-      console.log('Roundtrip complete:', {
-        outbound: selectedOutboundFlight,
-        return: flight
-      });
-      // TODO: Navigate to booking page with both flights
+      return;
     }
+
+    setSelectedReturnFlight(flight);
   };
 
   // Search for return flights (reverse route)
@@ -598,14 +1101,16 @@ function FlightResultContent() {
     setError('');
 
     try {
-      // Use passed flight or state
       const outboundFlight = selectedFlight || selectedOutboundFlight;
-      
-      // Extract airport codes (reversed for return)
-      const originCode = searchCriteria.to.split(' - ')[0].trim();
-      const destinationCode = searchCriteria.from.split(' - ')[0].trim();
+      const originCode = String(searchCriteria.to || '').split(' - ')[0].trim();
+      const destinationCode = String(searchCriteria.from || '').split(' - ')[0].trim();
 
-      // Prepare API request for return flights
+      const includedAirlineCodes = Array.isArray((searchCriteria as any)?.preferredAirlines)
+        ? (searchCriteria as any).preferredAirlines
+        : Array.isArray((searchCriteria as any)?.includedAirlineCodes)
+          ? (searchCriteria as any).includedAirlineCodes
+          : undefined;
+
       const requestBody = {
         originLocationCode: originCode,
         destinationLocationCode: destinationCode,
@@ -615,101 +1120,46 @@ function FlightResultContent() {
         infants: parseInt(searchCriteria.passengers.match(/(\d+)\s*Infant/)?.[1] || '0'),
         travelClass: searchCriteria.class,
         nonStop: searchCriteria.isDirect,
+        preferredAirlines: includedAirlineCodes,
         currencyCode: 'USD',
         maxResults: 50,
       };
 
-      console.log('Searching return flights:', requestBody);
-
-      // Call API
       const response = await fetch('/api/flights/search', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to search return flights');
+        throw new Error(`API error: ${response.status}`);
       }
 
       const data = await response.json();
-      
-      if (data.success && data.data) {
-        if (data.dictionaries?.carriers) {
-          mergeCarrierNames(data.dictionaries.carriers);
-          try {
-            const storedCarrierNames = localStorage.getItem('flightCarrierNames');
-            const existing = storedCarrierNames ? JSON.parse(storedCarrierNames) : {};
-            localStorage.setItem('flightCarrierNames', JSON.stringify({
-              ...(existing || {}),
-              ...data.dictionaries.carriers,
-            }));
-          } catch {
-            // ignore
-          }
-        }
 
-        console.log(`Found ${data.data.length} return flights`);
-        console.log('Selected outbound airline:', outboundFlight?.airline, 'Logo:', outboundFlight?.logo);
-
+      if (data?.success && Array.isArray(data?.data) && data.data.length > 0) {
         const mk = String(searchCriteria?.markup ?? markup ?? '0');
         const mkType = String(searchCriteria?.markupType ?? markupType ?? 'fixed');
         const mapped = (data.data || []).map((f: any) => withMarkupFlight(f, mk, mkType));
-        
-        // Create a copy and sort return flights: same airline first, then others
-        const sortedReturnFlights = [...mapped].sort((a: any, b: any) => {
-          const aCarrierCode = a.carrierCode || '';
-          const bCarrierCode = b.carrierCode || '';
-          const selectedCarrierCode = outboundFlight?.carrierCode || '';
-          
-          const aIsSameAirline = aCarrierCode === selectedCarrierCode;
-          const bIsSameAirline = bCarrierCode === selectedCarrierCode;
-          
-          console.log(`🔄 Comparing: [${a.airline}]${aIsSameAirline?'✅':''} vs [${b.airline}]${bIsSameAirline?'✅':''}`);
-          
-          // Same airline comes first (return negative to put 'a' before 'b')
-          if (aIsSameAirline && !bIsSameAirline) {
-            console.log(`   → ${a.airline} wins (same airline)`);
-            return -1;
-          }
-          if (!aIsSameAirline && bIsSameAirline) {
-            console.log(`   → ${b.airline} wins (same airline)`);
-            return 1;
-          }
-          
-          // Within same priority group, sort by price
-          const priceCompare = (a.price || 0) - (b.price || 0);
-          console.log(`   → Same priority, price compare: ${priceCompare}`);
-          return priceCompare;
+
+        // Prefer same carrier as outbound first (if present), then by price.
+        const selectedCarrierCode = String(outboundFlight?.carrierCode || '').trim();
+        const sorted = [...mapped].sort((a: any, b: any) => {
+          const aSame = selectedCarrierCode && String(a?.carrierCode || '') === selectedCarrierCode;
+          const bSame = selectedCarrierCode && String(b?.carrierCode || '') === selectedCarrierCode;
+          if (aSame && !bSame) return -1;
+          if (!aSame && bSame) return 1;
+          return (a?.price || 0) - (b?.price || 0);
         });
-        
-        const sameAirlineCount = sortedReturnFlights.filter((f: any) => {
-          return f.carrierCode === outboundFlight?.carrierCode;
-        }).length;
-        
-        console.log(`✈️ Prioritizing ${outboundFlight?.airline} (${outboundFlight?.carrierCode}) flights for return. Found ${sameAirlineCount} matching flights.`);
-        console.log('First 3 sorted flights:', sortedReturnFlights.slice(0, 3).map((f: any) => ({
-          airline: f.airline,
-          carrierCode: f.carrierCode,
-          price: f.price
-        })));
-        console.log('🔍 Full sorted array order:', sortedReturnFlights.map((f: any, i: number) => `${i}: ${f.airline} (${f.carrierCode}) ($${f.price})`));
-        
-        setReturnFlights(sortedReturnFlights);
-        
-        // Verify state immediately after setState
-        console.log('✅ State set with', sortedReturnFlights.length, 'return flights');
+
+        setReturnFlights(sorted);
       } else {
         setReturnFlights([]);
         setError('No return flights found');
       }
-
     } catch (error: any) {
       console.error('Return flight search error:', error);
-      setError(error.message || 'Failed to search return flights. Please try again.');
+      setError(error?.message || 'Failed to search return flights');
       setReturnFlights([]);
     } finally {
       setIsLoading(false);
@@ -718,6 +1168,11 @@ function FlightResultContent() {
 
   useEffect(() => {
     const loadInitialData = async () => {
+      // In Next.js dev mode, React StrictMode can run effects twice.
+      // Prevent duplicate initial API calls which can trigger rate limits.
+      if (didInitialLoadRef.current) return;
+      didInitialLoadRef.current = true;
+
       const storedCarrierNames = localStorage.getItem('flightCarrierNames');
       if (storedCarrierNames) {
         try {
@@ -761,6 +1216,15 @@ function FlightResultContent() {
         setIsDirect(normalized.isDirect);
         setMarkup(normalized.markup);
         setMarkupType(normalized.markupType);
+
+        if (normalized.tripType === 'Multipoint') {
+          const segmentsFromCriteria = Array.isArray(criteria?.segments) ? criteria.segments : null;
+          const segmentsFromUrl = parseSegmentsParam(searchParams.get('segments') || '');
+          const segments = (segmentsFromCriteria && segmentsFromCriteria.length > 0 ? segmentsFromCriteria : segmentsFromUrl) || [];
+          setMultiPointSegments(segments);
+          await searchMultiPoint({ ...normalized, segments });
+          return;
+        }
         
         // Fetch fresh departure flights from API (real-time data)
         console.log('Fetching fresh departure flights from API...');
@@ -794,9 +1258,15 @@ function FlightResultContent() {
           };
 
           console.log('Fetching fresh flights from URL criteria...');
-          await searchFlightsForDate(criteria.departureDate, criteria.returnDate, criteria);
-          if (criteria.tripType === 'Roundtrip' && criteria.returnDate) {
-            await searchReturnFlightsInitial(criteria);
+          if (criteria.tripType === 'Multipoint') {
+            const segments = parseSegmentsParam(searchParams.get('segments') || '');
+            setMultiPointSegments(segments);
+            await searchMultiPoint({ ...criteria, segments });
+          } else {
+            await searchFlightsForDate(criteria.departureDate, criteria.returnDate, criteria);
+            if (criteria.tripType === 'Roundtrip' && criteria.returnDate) {
+              await searchReturnFlightsInitial(criteria);
+            }
           }
         } else {
           // Final fallback: Load flights from localStorage if no criteria found
@@ -805,10 +1275,30 @@ function FlightResultContent() {
             const results = JSON.parse(storedFlights);
             const mk = String(markup ?? '0');
             const mkType = String(markupType ?? 'fixed');
-            setFlights((results || []).map((f: any) => withMarkupFlight(f, mk, mkType)));
+
+            if (results?.mode === 'Multipoint' && Array.isArray(results?.legs)) {
+              const legs = (results.legs || []).map((leg: any) => ({
+                ...leg,
+                flights: (leg?.flights || []).map((f: any) => withMarkupFlight(f, mk, mkType)),
+              }));
+              setMultiPointLegs(legs);
+              setFlights(legs?.[0]?.flights || []);
+              setTripType('Multipoint');
+              setMultiPointSegments(
+                Array.isArray(results?.legs)
+                  ? (results.legs || []).map((l: any) => ({
+                      from: l?.segment?.originLocationCode,
+                      to: l?.segment?.destinationLocationCode,
+                      departureDate: l?.segment?.departureDate,
+                    }))
+                  : []
+              );
+            } else {
+              setFlights((results || []).map((f: any) => withMarkupFlight(f, mk, mkType)));
+            }
 
             // Calculate price range from results
-            if (results.length > 0) {
+            if (Array.isArray(results) && results.length > 0) {
               const prices = results
                 .map((f: any) => parsePrice(f?.price))
                 .filter((p: number) => Number.isFinite(p) && p > 0);
@@ -868,6 +1358,12 @@ function FlightResultContent() {
       const originCode = criteria.to.split(' - ')[0].trim();
       const destinationCode = criteria.from.split(' - ')[0].trim();
 
+      const includedAirlineCodes = Array.isArray(criteria?.preferredAirlines)
+        ? criteria.preferredAirlines
+        : Array.isArray(criteria?.includedAirlineCodes)
+          ? criteria.includedAirlineCodes
+          : undefined;
+
       const requestBody = {
         originLocationCode: originCode,
         destinationLocationCode: destinationCode,
@@ -877,6 +1373,7 @@ function FlightResultContent() {
         infants: parseInt(criteria.passengers.match(/(\d+)\s*Infant/)?.[1] || '0'),
         travelClass: criteria.class,
         nonStop: criteria.isDirect,
+        preferredAirlines: includedAirlineCodes,
         currencyCode: 'USD',
         maxResults: 50,
       };
@@ -961,24 +1458,128 @@ function FlightResultContent() {
   const filteredFlights = filterFlightsList(flights);
   const filteredReturnFlights = filterFlightsList(returnFlights);
 
-  // Sort flights
-  const sortedFlights = [...filteredFlights].sort((a, b) => {
-    if (sortBy === 'price') {
-      return (a.price || 0) - (b.price || 0);
-    } else if (sortBy === 'duration') {
-      const durationA = parseDuration(a.duration || '0h 0m');
-      const durationB = parseDuration(b.duration || '0h 0m');
-      return durationA - durationB;
-    }
-    return 0;
-  });
+  const parseDurationMinutes = (duration: string): number => {
+    const s = String(duration || '');
+    const hours = s.match(/(\d+)h/i)?.[1] || s.match(/(\d+)H/)?.[1] || '0';
+    const minutes = s.match(/(\d+)m/i)?.[1] || s.match(/(\d+)M/)?.[1] || '0';
+    return Number.parseInt(hours, 10) * 60 + Number.parseInt(minutes, 10);
+  };
 
-  function parseDuration(duration: string): number {
-    // Handle both formats: "5h 10m" and "PT5H10M"
-    const hours = duration.match(/(\d+)h/i)?.[1] || duration.match(/(\d+)H/)?.[1] || '0';
-    const minutes = duration.match(/(\d+)m/i)?.[1] || duration.match(/(\d+)M/)?.[1] || '0';
-    return parseInt(hours) * 60 + parseInt(minutes);
-  }
+  const getDepartureMinutes = (flight: any): number => {
+    const iso =
+      flight?.originalOffer?.itineraries?.[0]?.segments?.[0]?.departure?.at ||
+      flight?.departure?.at ||
+      flight?.departure?.time ||
+      '';
+    const s = String(iso || '').trim();
+    if (!s) return Number.POSITIVE_INFINITY;
+
+    if (s.includes('T')) {
+      const d = new Date(s);
+      if (!Number.isFinite(d.getTime())) return Number.POSITIVE_INFINITY;
+      return d.getHours() * 60 + d.getMinutes();
+    }
+
+    const m = s.match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return Number.POSITIVE_INFINITY;
+    const hh = Number.parseInt(m[1], 10);
+    const mm = Number.parseInt(m[2], 10);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return Number.POSITIVE_INFINITY;
+    return Math.min(1439, Math.max(0, hh * 60 + mm));
+  };
+
+  const getDurationMinutes = (flight: any): number => {
+    const direct = flight?.duration;
+    if (typeof direct === 'string' && direct.trim()) return parseDurationMinutes(direct);
+
+    const offerDuration = flight?.originalOffer?.itineraries?.[0]?.duration;
+    if (typeof offerDuration === 'string' && offerDuration.trim()) return parseDurationMinutes(offerDuration);
+
+    const segs = flight?.originalOffer?.itineraries?.[0]?.segments;
+    const first = Array.isArray(segs) ? segs[0] : null;
+    const last = Array.isArray(segs) ? segs[segs.length - 1] : null;
+    const start = first?.departure?.at;
+    const end = last?.arrival?.at;
+    if (start && end) return minutesBetween(String(start), String(end));
+    return 0;
+  };
+
+  type ActiveSort =
+    | 'price_asc'
+    | 'price_desc'
+    | 'time_asc'
+    | 'time_desc'
+    | 'duration_asc'
+    | 'duration_desc';
+
+  const activeSort: ActiveSort =
+    durationSort !== 'none'
+      ? durationSort
+      : timeSort !== 'none'
+        ? timeSort
+        : priceSort;
+
+  const sortFlightsList = (list: any[]) => {
+    const copy = [...(list || [])];
+    copy.sort((a, b) => {
+      if (activeSort === 'price_asc' || activeSort === 'price_desc') {
+        const pa = parsePrice(a?.price ?? a?.basePrice);
+        const pb = parsePrice(b?.price ?? b?.basePrice);
+        const av = Number.isFinite(pa) ? pa : Number.POSITIVE_INFINITY;
+        const bv = Number.isFinite(pb) ? pb : Number.POSITIVE_INFINITY;
+        return activeSort === 'price_asc' ? av - bv : bv - av;
+      }
+
+      if (activeSort === 'time_asc' || activeSort === 'time_desc') {
+        const ta = getDepartureMinutes(a);
+        const tb = getDepartureMinutes(b);
+        return activeSort === 'time_asc' ? ta - tb : tb - ta;
+      }
+
+      const da = getDurationMinutes(a);
+      const db = getDurationMinutes(b);
+      return activeSort === 'duration_asc' ? da - db : db - da;
+    });
+    return copy;
+  };
+
+  const sortReturnFlightsWithPreferredCarrier = (list: any[]) => {
+    const preferred = String(getCarrierCode(selectedOutboundFlight) || '').trim();
+    if (!preferred) return sortFlightsList(list);
+
+    const sameCarrier: any[] = [];
+    const otherCarriers: any[] = [];
+    for (const f of list || []) {
+      const code = String(getCarrierCode(f) || '').trim();
+      if (code && code === preferred) sameCarrier.push(f);
+      else otherCarriers.push(f);
+    }
+
+    return [...sortFlightsList(sameCarrier), ...sortFlightsList(otherCarriers)];
+  };
+
+  const sortMultiPointLeg2WithLeg1Carrier = (list: any[]) => {
+    const preferred = String(getCarrierCode(selectedMultiPointFlights?.[0]) || '').trim();
+    if (!preferred) return sortFlightsList(list);
+
+    const sameCarrier: any[] = [];
+    const otherCarriers: any[] = [];
+    for (const f of list || []) {
+      const code = String(getCarrierCode(f) || '').trim();
+      if (code && code === preferred) sameCarrier.push(f);
+      else otherCarriers.push(f);
+    }
+
+    return [...sortFlightsList(sameCarrier), ...sortFlightsList(otherCarriers)];
+  };
+
+  const sortedFlights =
+    searchCriteria.tripType === 'Multipoint' &&
+    activeMultiPointLegIndex === 1 &&
+    Boolean(selectedMultiPointFlights?.[0])
+      ? sortMultiPointLeg2WithLeg1Carrier(filteredFlights)
+      : sortFlightsList(filteredFlights);
+  const sortedReturnFlights = sortReturnFlightsWithPreferredCarrier(filteredReturnFlights);
 
   // Location autocomplete functions
   const fetchLocationSuggestions = async (query: string, setLoading: (val: boolean) => void, setSuggestions: (val: any[]) => void) => {
@@ -1120,6 +1721,8 @@ function FlightResultContent() {
     }
   };
 
+  const isOneWayTrip = String(searchCriteria?.tripType || tripType) === 'Oneway';
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -1190,6 +1793,17 @@ function FlightResultContent() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/agency/agencies/add" 
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="font-medium">Add Agent</span>
                     </div>
                   </a>
                   <a 
@@ -1549,11 +2163,25 @@ function FlightResultContent() {
             </div>
             
             <FlightSearchForm
+              key={[
+                fromLocation,
+                toLocation,
+                departureDate,
+                returnDate,
+                tripType,
+                (multiPointSegments || []).map((s: any) => `${s?.from || ''}-${s?.to || ''}-${s?.departureDate || ''}`).join('|'),
+                markup,
+                markupType,
+                String(isDirect),
+                passengers,
+                flightClass,
+              ].join('|')}
               initialData={{
                 from: fromLocation,
                 to: toLocation,
                 departureDate,
                 returnDate,
+                segments: multiPointSegments,
                 adults: parseInt(passengers.match(/(\d+)\s*Adult/)?.[1] || '1'),
                 children: parseInt(passengers.match(/(\d+)\s*Child/)?.[1] || '0'),
                 infants: parseInt(passengers.match(/(\d+)\s*Infant/)?.[1] || '0'),
@@ -1563,9 +2191,71 @@ function FlightResultContent() {
                 markupType,
                 isDirect
               }}
-              onSearchComplete={() => {
-                // Reload the page to show new results
-                window.location.reload();
+              onSearchComplete={async () => {
+                // FlightSearchForm already writes the latest criteria to localStorage.
+                // Hydrate it here and run searches without a full reload so we don't snap back to old values.
+                try {
+                  const storedCriteria = localStorage.getItem('flightSearchCriteria') || localStorage.getItem('searchCriteria');
+                  if (!storedCriteria) return;
+                  const criteria = JSON.parse(storedCriteria);
+
+                  const normalized = {
+                    from: criteria.from ?? fromLocation,
+                    to: criteria.to ?? toLocation,
+                    departureDate: criteria.departureDate ?? departureDate,
+                    returnDate: criteria.returnDate ?? returnDate,
+                    passengers:
+                      criteria.passengers ||
+                      formatPassengers(
+                        Number.isFinite(Number(criteria.adults)) ? Number(criteria.adults) : 1,
+                        Number.isFinite(Number(criteria.children)) ? Number(criteria.children) : 0,
+                        Number.isFinite(Number(criteria.infants)) ? Number(criteria.infants) : 0
+                      ),
+                    class: criteria.class ?? criteria.flightClass ?? flightClass,
+                    tripType: criteria.tripType ?? tripType,
+                    isDirect: typeof criteria.isDirect === 'boolean' ? criteria.isDirect : isDirect,
+                    markup: String(criteria.markup ?? markup ?? '0'),
+                    markupType: (criteria.markupType === 'percentage' ? 'percentage' : 'fixed') as 'fixed' | 'percentage',
+                  };
+
+                  setFromLocation(normalized.from);
+                  setToLocation(normalized.to);
+                  setDepartureDate(normalized.departureDate);
+                  setReturnDate(normalized.returnDate);
+                  setPassengers(normalized.passengers);
+                  setFlightClass(normalized.class);
+                  setTripType(normalized.tripType);
+                  setIsDirect(normalized.isDirect);
+                  setMarkup(normalized.markup);
+                  setMarkupType(normalized.markupType);
+
+                  // Reset selections
+                  setSelectedOutboundFlight(null);
+                  setSelectedReturnFlight(null);
+                  setShowReturnFlights(false);
+                  setReturnFlights([]);
+                  setSelectedMultiPointFlights({});
+                  setActiveMultiPointLegIndex(0);
+
+                  // Fetch fresh results using the existing pipeline (also applies markup consistently)
+                  if (normalized.tripType === 'Multipoint') {
+                    const segmentsFromCriteria = Array.isArray(criteria?.segments) ? criteria.segments : [];
+                    setMultiPointSegments(segmentsFromCriteria);
+                    await searchMultiPoint({ ...normalized, segments: segmentsFromCriteria });
+                  } else {
+                    await searchFlightsForDate(
+                      normalized.departureDate,
+                      normalized.tripType === 'Roundtrip' ? normalized.returnDate : null,
+                      normalized
+                    );
+
+                    if (normalized.tripType === 'Roundtrip' && normalized.returnDate) {
+                      await searchReturnFlightsInitial(normalized);
+                    }
+                  }
+                } catch (e) {
+                  console.error('Failed to apply new search criteria:', e);
+                }
               }}
             />
           </div>
@@ -1751,54 +2441,118 @@ function FlightResultContent() {
             <div className="bg-white rounded-lg shadow-sm p-4 mb-4 flex items-center justify-between">
               <div className="flex space-x-4">
                 <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  value={priceSort}
+                  onChange={(e) => {
+                    const v = e.target.value as 'price_asc' | 'price_desc';
+                    setPriceSort(v);
+                    setTimeSort('none');
+                    setDurationSort('none');
+                  }}
                   className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="price">Increasing per price</option>
-                  <option value="duration">Travel Duration</option>
+                  <option value="" disabled>
+                    Price
+                  </option>
+                  <option value="price_asc">Increasing per price</option>
+                  <option value="price_desc">Decreasing per price</option>
                 </select>
-                <select className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500">
-                  <option>Hour</option>
+
+                <select
+                  value={timeSort === 'none' ? '' : timeSort}
+                  onChange={(e) => {
+                    const v = (e.target.value || 'none') as 'none' | 'time_asc' | 'time_desc';
+                    setTimeSort(v);
+                    if (v !== 'none') setDurationSort('none');
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Hour</option>
+                  <option value="time_asc">Increasing per time</option>
+                  <option value="time_desc">Decreasing per time</option>
                 </select>
-                <select className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500">
-                  <option>Travel Duration</option>
+
+                <select
+                  value={durationSort === 'none' ? '' : durationSort}
+                  onChange={(e) => {
+                    const v = (e.target.value || 'none') as 'none' | 'duration_asc' | 'duration_desc';
+                    setDurationSort(v);
+                    if (v !== 'none') setTimeSort('none');
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Travel Duration</option>
+                  <option value="duration_asc">Ascending to journey duration</option>
+                  <option value="duration_desc">Descending to journey duration</option>
                 </select>
               </div>
             </div>
 
-            {/* Departure Flights Header */}
+            {/* Results Header */}
             {sortedFlights.length > 0 && (
-              <div className="bg-orange-600 text-white py-3 sm:py-4 px-4 sm:px-6 rounded-lg mb-4">
-                <h2 className="text-lg sm:text-xl md:text-2xl font-bold">
-                  {searchCriteria.tripType === 'Roundtrip' ? 'Departure Flights' : 'Available Flights'}
-                </h2>
-                <p className="text-xs sm:text-sm mt-1">
-                  {searchCriteria.from.split(' - ')[0]} to {searchCriteria.to.split(' - ')[0]} on {searchCriteria.departureDate}
-                </p>
-              </div>
+              <>
+                {searchCriteria.tripType === 'Multipoint' && (multiPointLegs?.length || 0) >= 2 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {multiPointLegs.map((leg: any, idx: number) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveMultiPointLegIndex(idx)}
+                        className={`h-10 px-4 rounded-lg text-sm font-medium transition-colors ${
+                          activeMultiPointLegIndex === idx
+                            ? 'bg-[#155dfc] text-white'
+                            : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                        }`}
+                      >
+                        Leg {idx + 1}
+                        {selectedMultiPointFlights?.[idx] ? ' ✓' : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="bg-orange-600 text-white py-3 sm:py-4 px-4 sm:px-6 rounded-lg mb-4">
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-bold">
+                    {searchCriteria.tripType === 'Multipoint'
+                      ? `Leg ${activeMultiPointLegIndex + 1} Flights`
+                      : searchCriteria.tripType === 'Roundtrip'
+                        ? 'Departure Flights'
+                        : 'Available Flights'}
+                  </h2>
+                  <p className="text-xs sm:text-sm mt-1">
+                    {searchCriteria.tripType === 'Multipoint'
+                      ? (() => {
+                          const seg = multiPointLegs?.[activeMultiPointLegIndex]?.segment;
+                          if (!seg) return '';
+                          return `${seg.originLocationCode} to ${seg.destinationLocationCode} on ${seg.departureDate}`;
+                        })()
+                      : `${searchCriteria.from.split(' - ')[0]} to ${searchCriteria.to.split(' - ')[0]} on ${searchCriteria.departureDate}`}
+                  </p>
+                </div>
+              </>
             )}
 
             {/* Day Navigation */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-4">
-              <button 
-                onClick={handlePreviousDay}
-                disabled={isLoading}
-                className="bg-gray-700 hover:bg-gray-600 text-white py-2 sm:py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm md:text-base"
-              >
-                « Previous Day
-              </button>
-              <div className="bg-orange-500 text-white py-2 sm:py-3 rounded-lg font-bold text-center text-xs sm:text-sm md:text-base flex items-center justify-center px-2">
-                <span className="hidden sm:inline">{searchCriteria.from.split(' - ')[0] || 'Origin'} - {searchCriteria.to.split(' - ')[0] || 'Destination'} / </span>{searchCriteria.departureDate}
+            {searchCriteria.tripType !== 'Multipoint' && (
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-4">
+                <button 
+                  onClick={handlePreviousDay}
+                  disabled={isLoading}
+                  className="bg-gray-700 hover:bg-gray-600 text-white py-2 sm:py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm md:text-base"
+                >
+                  « Previous Day
+                </button>
+                <div className="bg-orange-500 text-white py-2 sm:py-3 rounded-lg font-bold text-center text-xs sm:text-sm md:text-base flex items-center justify-center px-2">
+                  <span className="hidden sm:inline">{searchCriteria.from.split(' - ')[0] || 'Origin'} - {searchCriteria.to.split(' - ')[0] || 'Destination'} / </span>{searchCriteria.departureDate}
+                </div>
+                <button 
+                  onClick={handleNextDay}
+                  disabled={isLoading}
+                  className="bg-gray-700 hover:bg-gray-600 text-white py-2 sm:py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm md:text-base"
+                >
+                  Next Day »
+                </button>
               </div>
-              <button 
-                onClick={handleNextDay}
-                disabled={isLoading}
-                className="bg-gray-700 hover:bg-gray-600 text-white py-2 sm:py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm md:text-base"
-              >
-                Next Day »
-              </button>
-            </div>
+            )}
 
             {/* Loading State */}
             {isLoading && (
@@ -1848,13 +2602,26 @@ function FlightResultContent() {
               const cabin = flight.class || 'Economy';
               const availability = flight.availability || '';
               const flightKey = getFlightKey(flight);
+              const selectedReference =
+                searchCriteria.tripType === 'Multipoint'
+                  ? selectedMultiPointFlights?.[activeMultiPointLegIndex]
+                  : selectedOutboundFlight;
               const isSelected =
-                Boolean(selectedOutboundFlight) &&
-                (selectedOutboundFlight === flight || getFlightKey(selectedOutboundFlight) === flightKey);
+                Boolean(selectedReference) &&
+                (selectedReference === flight || getFlightKey(selectedReference) === flightKey);
               const isTripDetailsOpen = Boolean(openTripDetailsByKey[flightKey]);
               
               // Hide non-selected flights when one is selected
-              if (selectedOutboundFlight && !isSelected) {
+              if (searchCriteria.tripType !== 'Multipoint' && selectedOutboundFlight && !isSelected) {
+                return null;
+              }
+
+              // Multipoint: when a flight is selected for the active leg, hide the rest
+              if (
+                searchCriteria.tripType === 'Multipoint' &&
+                Boolean(selectedMultiPointFlights?.[activeMultiPointLegIndex]) &&
+                !isSelected
+              ) {
                 return null;
               }
 
@@ -1884,28 +2651,28 @@ function FlightResultContent() {
                           }`
                     }`}
                   >
-                    <div className="p-6">
+                    <div className="p-4 sm:p-5">
                       {isSelected && (
-                        <div className="mb-4 flex items-center justify-between bg-green-100 p-3 rounded-lg">
+                        <div className="mb-3 flex items-center justify-between bg-green-100 px-3 py-2 rounded-lg">
                           <div className="flex items-center space-x-2">
-                            <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                             </svg>
-                            <span className="text-green-700 font-bold">Outbound Flight Selected</span>
+                            <span className="text-green-700 font-semibold text-sm">Flight Selected</span>
                           </div>
                         </div>
                       )}
 
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-5">
                         {/* Airline Info */}
-                        <div className="flex items-center space-x-3 md:w-1/5 md:pr-6">
+                        <div className="flex items-center space-x-3 md:w-1/4 md:pr-4">
                           <div className="flex items-center space-x-2 sm:space-x-3">
                             {/* Airline Logo */}
                             {logo && (
                               <img 
                                 src={logo} 
                                 alt={airline}
-                                className="w-10 h-10 sm:w-12 sm:h-12 object-contain bg-transparent flex-shrink-0"
+                                className="w-9 h-9 sm:w-10 sm:h-10 object-contain bg-transparent flex-shrink-0"
                                 onError={(e) => {
                                   const img = e.currentTarget;
                                   const current = img.src || '';
@@ -1924,46 +2691,40 @@ function FlightResultContent() {
                               />
                             )}
                             <div className="text-left">
-                              <div className="text-red-600 text-lg sm:text-xl font-bold">{airline}</div>
-                              <div className="text-xs sm:text-sm text-gray-600">{flightNumber}</div>
+                              <div className="text-red-600 text-base sm:text-lg font-semibold leading-tight">{airline}</div>
+                              <div className="text-xs text-gray-600">{flightNumber}</div>
                             </div>
                           </div>
                         </div>
 
                         {/* Flight Times */}
-                        <div className="flex items-center justify-between md:space-x-4 lg:space-x-8 flex-1 md:pl-4">
+                        <div className="flex items-center justify-between md:space-x-4 lg:space-x-6 flex-1 md:pl-2">
                           <div className="text-center">
                             <div className="flex flex-col sm:flex-row items-center sm:space-x-2">
-                              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 mb-1 sm:mb-0" fill="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4 text-orange-500 mb-1 sm:mb-0" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                               </svg>
-                              <span className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-gray-900">
+                              <span className="text-sm sm:text-base md:text-lg font-semibold text-gray-900">
                                 {departureAirport} {departureTime}
                               </span>
                             </div>
                           </div>
 
                           <div className="flex-1 text-center">
-                            <div className="relative px-4 sm:px-6">
-                              <div className="h-0.5 sm:h-1 bg-blue-300 rounded-full"></div>
-                              <button
-                                type="button"
-                                aria-label="Toggle trip details"
-                                onClick={() => toggleTripDetails(flight)}
-                                className="absolute -top-2 sm:-top-3 left-1/2 transform -translate-x-1/2 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-blue-600 bg-white shadow-sm flex items-center justify-center"
-                              >
-                                <span className={`block w-2 h-2 rounded-full ${isTripDetailsOpen ? 'bg-blue-600' : 'bg-transparent'}`}></span>
-                              </button>
+                            <div className="px-4 sm:px-6">
+                              <span className="inline-flex items-center gap-1 text-xs sm:text-sm text-gray-600 font-medium">
+                                <ClockIcon />
+                                {formatDuration(duration)}
+                              </span>
                             </div>
-                            <div className="text-xs sm:text-sm text-gray-600 mt-2 font-medium">{formatDuration(duration)}</div>
                           </div>
 
                           <div className="text-center">
                             <div className="flex flex-col sm:flex-row items-center sm:space-x-2">
-                              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 mb-1 sm:mb-0" fill="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4 text-orange-500 mb-1 sm:mb-0" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                               </svg>
-                              <span className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-gray-900">
+                              <span className="text-sm sm:text-base md:text-lg font-semibold text-gray-900">
                                 {arrivalAirport} {arrivalTime}
                               </span>
                             </div>
@@ -1971,13 +2732,21 @@ function FlightResultContent() {
                         </div>
 
                         {/* Price and Select */}
-                        <div className="text-right md:w-1/6 w-full mt-4 md:mt-0">
-                          <div className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-                            {price.toFixed(2)} <span className="text-sm sm:text-base md:text-lg">USD</span>
+                        <div className="text-right md:w-1/5 w-full">
+                          <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2">
+                            {price.toFixed(2)} <span className="text-xs sm:text-sm md:text-base">USD</span>
                           </div>
                           <button 
                             onClick={() => {
                               if (isSelected) {
+                                if (searchCriteria.tripType === 'Multipoint') {
+                                  setSelectedMultiPointFlights((prev) => {
+                                    const next = { ...(prev || {}) };
+                                    delete next[activeMultiPointLegIndex];
+                                    return next;
+                                  });
+                                  return;
+                                }
                                 setSelectedOutboundFlight(null);
                                 setSelectedReturnFlight(null);
                                 setShowReturnFlights(false);
@@ -1987,20 +2756,24 @@ function FlightResultContent() {
                               handleSelectFlight(flight);
                             }}
                             disabled={isLoading}
-                            className={`w-full px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-bold transition-colors text-sm sm:text-base ${
+                            className={`w-full px-5 sm:px-6 py-2 rounded-lg font-semibold transition-colors text-sm ${
                               isSelected 
                                 ? 'bg-red-600 hover:bg-red-700 text-white' 
                                 : 'bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 disabled:cursor-not-allowed'
                             }`}
                           >
-                            {isSelected ? 'Remove' : 'Select'}
+                            {isSelected
+                              ? 'Remove'
+                              : searchCriteria.tripType === 'Multipoint'
+                                ? `Select Leg ${activeMultiPointLegIndex + 1}`
+                                : 'Select'}
                           </button>
                         </div>
                       </div>
 
                       {/* Flight Details Tags */}
-                      <div className="flex flex-wrap items-center gap-2 mt-4">
-                        <span className={`text-white px-3 py-1 rounded-full text-xs font-medium flex items-center ${cabin.toLowerCase().includes('business') ? 'bg-purple-600' : 'bg-blue-600'}`}>
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <span className={`text-white px-3 py-1 rounded-full text-[11px] font-semibold flex items-center ${cabin.toLowerCase().includes('business') ? 'bg-purple-600' : 'bg-blue-600'}`}>
                           <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
                             <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -2008,50 +2781,45 @@ function FlightResultContent() {
                           {cabinWithBooking}
                         </span>
 
-                        {Number.isFinite(seatsLeft) && seatsLeft > 0 && (
-                          <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
-                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M6 3a2 2 0 00-2 2v8a2 2 0 002 2h1v2a1 1 0 102 0v-2h2v2a1 1 0 102 0v-2h1a2 2 0 002-2V5a2 2 0 00-2-2H6zm0 2h8v8H6V5z" />
-                            </svg>
-                            {seatsLeft}
-                          </span>
-                        )}
+                        {Number.isFinite(seatsLeft) && seatsLeft > 0 && null}
 
-                        <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                        <span className="bg-red-500 text-white px-3 py-1 rounded-full text-[11px] font-semibold flex items-center">
                           <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" />
                           </svg>
                           {stops}
                         </span>
 
-                        <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                        <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-[11px] font-semibold flex items-center">
                           <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M17 6h-2V3c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v3H7c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2 0 .55.45 1 1 1s1-.45 1-1h6c0 .55.45 1 1 1s1-.45 1-1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM9.5 18H8V9h1.5v9zm3.25 0h-1.5V9h1.5v9zm.75-12h-3V3.5h3V6zM16 18h-1.5V9H16v9z"/>
                           </svg>
                           Hand Bag{baggageLabel ? ` • ${baggageLabel}` : ''}
                         </span>
 
-                        {offerBadge && (
-                          <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                        {offerBadge && String(offerBadge).trim().toLowerCase() !== 'published' && (
+                          <span className="bg-green-600 text-white px-3 py-1 rounded-full text-[11px] font-semibold flex items-center">
                             <span className="font-extrabold mr-1">+</span>
                             {offerBadge}
                           </span>
                         )}
 
-                        <button
-                          type="button"
-                          onClick={() => toggleTripDetails(flight)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs font-semibold flex items-center"
-                        >
-                          Trip Details
-                          <svg className={`w-4 h-4 ml-1 transition-transform ${isTripDetailsOpen ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                        {!isOneWayTrip && (
+                          <button
+                            type="button"
+                            onClick={() => toggleTripDetails(flight)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs font-semibold flex items-center"
+                          >
+                            Trip Details
+                            <svg className={`w-4 h-4 ml-1 transition-transform ${isTripDetailsOpen ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
 
                       {/* Trip Details (hidden until opened) */}
-                      {isTripDetailsOpen && (
+                      {!isOneWayTrip && isTripDetailsOpen && (
                         <div className="mt-4 rounded-lg border border-blue-200 bg-slate-50 overflow-hidden">
                           {getSegments(flight).length === 0 ? (
                             <div className="p-4 text-sm text-gray-600">No additional details available for this offer.</div>
@@ -2215,7 +2983,7 @@ function FlightResultContent() {
                     )}
 
                     {/* Return Flight Cards */}
-                    {filteredReturnFlights.map((returnFlight, returnIndex) => {
+                    {sortedReturnFlights.map((returnFlight, returnIndex) => {
                       const returnCarrierCode = getCarrierCode(returnFlight);
                       const airline = getCarrierLabel(returnCarrierCode) || returnFlight.airline || 'Unknown';
                       console.log(`🎨 Rendering return flight #${returnIndex}: ${airline} (${returnFlight.logo}) - $${returnFlight.price}`);
@@ -2286,8 +3054,8 @@ function FlightResultContent() {
                                     }}
                                   />
                                   <div className="text-left">
-                                    <div className="text-blue-600 text-lg sm:text-xl font-bold">{airline}</div>
-                                    <div className="text-xs sm:text-sm text-gray-600">{flightNumber}</div>
+                                    <div className="text-blue-600 text-base sm:text-lg font-semibold leading-tight">{airline}</div>
+                                    <div className="text-xs text-gray-600">{flightNumber}</div>
                                     <div className="flex flex-col gap-1 mt-1">
                                       <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full inline-block">
                                         Return
@@ -2304,25 +3072,20 @@ function FlightResultContent() {
                                     <svg className="w-4 h-4 text-blue-500 mb-1 sm:mb-0" fill="currentColor" viewBox="0 0 24 24">
                                       <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                                     </svg>
-                                    <span className="text-base sm:text-lg md:text-xl font-bold text-gray-900">
+                                    <span className="text-sm sm:text-base md:text-lg font-semibold text-gray-900">
                                       {departureAirport} {departureTime}
                                     </span>
                                   </div>
                                 </div>
 
                                 <div className="flex-1 text-center">
-                                  <div className="relative px-2 sm:px-4">
-                                    <div className="h-0.5 bg-blue-300 rounded-full"></div>
-                                    <button
-                                      type="button"
-                                      aria-label="Toggle trip details"
-                                      onClick={() => toggleTripDetails(returnFlight)}
-                                      className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-5 h-5 rounded-full border-2 border-blue-600 bg-white shadow-sm flex items-center justify-center"
-                                    >
-                                      <span className={`block w-2 h-2 rounded-full ${isReturnTripDetailsOpen ? 'bg-blue-600' : 'bg-transparent'}`}></span>
-                                    </button>
+                                  <div className="px-2 sm:px-4">
+                                    <span className="inline-flex items-center gap-1 text-xs sm:text-sm text-gray-600 font-medium">
+                                      <ClockIcon />
+                                      {formatDuration(duration)}
+                                    </span>
+                                    <span className="text-xs sm:text-sm text-gray-600 font-medium"> | {stops}</span>
                                   </div>
-                                  <div className="text-xs text-gray-600 mt-1">{formatDuration(duration)} | {stops}</div>
                                 </div>
 
                                 <div className="text-center">
@@ -2330,7 +3093,7 @@ function FlightResultContent() {
                                     <svg className="w-4 h-4 text-blue-500 mb-1 sm:mb-0" fill="currentColor" viewBox="0 0 24 24">
                                       <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                                     </svg>
-                                    <span className="text-base sm:text-lg md:text-xl font-bold text-gray-900">
+                                    <span className="text-sm sm:text-base md:text-lg font-semibold text-gray-900">
                                       {arrivalAirport} {arrivalTime}
                                     </span>
                                   </div>
@@ -2372,14 +3135,7 @@ function FlightResultContent() {
                                 {cabinWithBooking}
                               </span>
 
-                              {Number.isFinite(seatsLeft) && seatsLeft > 0 && (
-                                <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
-                                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M6 3a2 2 0 00-2 2v8a2 2 0 002 2h1v2a1 1 0 102 0v-2h2v2a1 1 0 102 0v-2h1a2 2 0 002-2V5a2 2 0 00-2-2H6zm0 2h8v8H6V5z" />
-                                  </svg>
-                                  {seatsLeft}
-                                </span>
-                              )}
+                              {Number.isFinite(seatsLeft) && seatsLeft > 0 && null}
 
                               <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
                                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
@@ -2388,27 +3144,29 @@ function FlightResultContent() {
                                 Hand Bag{baggageLabel ? ` • ${baggageLabel}` : ''}
                               </span>
 
-                              {offerBadge && (
+                              {offerBadge && String(offerBadge).trim().toLowerCase() !== 'published' && (
                                 <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center">
                                   <span className="font-extrabold mr-1">+</span>
                                   {offerBadge}
                                 </span>
                               )}
 
-                              <button
-                                type="button"
-                                onClick={() => toggleTripDetails(returnFlight)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs font-semibold flex items-center"
-                              >
-                                Trip Details
-                                <svg className={`w-4 h-4 ml-1 transition-transform ${isReturnTripDetailsOpen ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                                </svg>
-                              </button>
+                              {!isOneWayTrip && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleTripDetails(returnFlight)}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs font-semibold flex items-center"
+                                >
+                                  Trip Details
+                                  <svg className={`w-4 h-4 ml-1 transition-transform ${isReturnTripDetailsOpen ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
 
                             {/* Trip Details (hidden until opened) */}
-                            {isReturnTripDetailsOpen && (
+                            {!isOneWayTrip && isReturnTripDetailsOpen && (
                               <div className="mt-4 rounded-lg border border-blue-200 bg-slate-50 overflow-hidden">
                                 {getSegments(returnFlight).length === 0 ? (
                                   <div className="p-4 text-sm text-gray-600">No additional details available for this offer.</div>
@@ -2550,8 +3308,69 @@ function FlightResultContent() {
             );
             })}
 
+            {/* Multipoint Summary + BUY NOW */}
+            {searchCriteria.tripType === 'Multipoint' && (multiPointLegs?.length || 0) >= 2 && (
+              <div className="mt-6 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-500 rounded-lg p-4 sm:p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Your Trip</h3>
+                    <div className="text-xs sm:text-sm text-gray-700 space-y-1">
+                      {multiPointLegs.map((leg: any, idx: number) => {
+                        const flight = selectedMultiPointFlights?.[idx];
+                        const seg = leg?.segment;
+                        const label = seg
+                          ? `${seg.originLocationCode} → ${seg.destinationLocationCode} on ${seg.departureDate}`
+                          : `Leg ${idx + 1}`;
+                        return (
+                          <div key={idx} className="flex items-start sm:items-center">
+                            <svg
+                              className={`w-4 h-4 mr-2 mt-0.5 sm:mt-0 flex-shrink-0 ${flight ? 'text-green-600' : 'text-gray-400'}`}
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            <span className="break-words">
+                              <strong>Leg {idx + 1}:</strong> {label}
+                              {flight ? (
+                                <> — ${Number(flight?.price || 0).toFixed(2)}</>
+                              ) : (
+                                <span className="text-gray-500"> — Not selected</span>
+                              )}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="text-center lg:text-right lg:ml-6 border-t lg:border-t-0 lg:border-l-2 border-green-300 pt-4 lg:pt-0 lg:pl-6">
+                    <div className="text-xs sm:text-sm text-gray-600 mb-1">Total Amount</div>
+                    <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-green-600 mb-3 sm:mb-4">
+                      ${multiPointLegs
+                        .reduce((sum: number, _leg: any, i: number) => sum + (Number(selectedMultiPointFlights?.[i]?.price) || 0), 0)
+                        .toFixed(2)}
+                    </div>
+                    <button
+                      onClick={handleBuyNow}
+                      disabled={
+                        Array.from({ length: multiPointLegs.length }).some((_, i) => !selectedMultiPointFlights?.[i])
+                      }
+                      className="w-full lg:w-auto bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-8 sm:px-10 md:px-12 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      BUY NOW
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* One-way Total + BUY NOW (shown after selecting outbound) */}
-            {selectedOutboundFlight && searchCriteria.tripType !== 'Roundtrip' && (
+            {selectedOutboundFlight && searchCriteria.tripType !== 'Roundtrip' && searchCriteria.tripType !== 'Multipoint' && (
               <div className="mt-6 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-500 rounded-lg p-4 sm:p-6">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
                   <div className="flex-1">
@@ -2620,7 +3439,7 @@ function FlightResultContent() {
                 </div>
 
                 {/* Return Flight Cards */}
-                {filteredReturnFlights.map((flight, index) => {
+                {sortedReturnFlights.map((flight, index) => {
                   const code = getCarrierCode(flight);
                   const airline = getCarrierLabel(code) || flight.airline || 'Unknown';
                   const flightNumber = flight.flightNumber || '';
@@ -2679,7 +3498,13 @@ function FlightResultContent() {
                               <div className="relative">
                                 <div className="h-0.5 bg-blue-400 rounded-full"></div>
                               </div>
-                              <div className="text-xs text-gray-600 mt-1">{formatDuration(duration)} | {stops}</div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                <span className="inline-flex items-center gap-1">
+                                  <ClockIcon />
+                                  {formatDuration(duration)}
+                                </span>{' '}
+                                | {stops}
+                              </div>
                             </div>
 
                             <div className="text-center">
@@ -2734,13 +3559,13 @@ function FlightResultContent() {
       {/* Booking Modal */}
       {showBookingModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl max-w-full sm:max-w-6xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
+          <div className="bg-gray-100 rounded-xl shadow-2xl max-w-full sm:max-w-6xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center z-10">
-              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Confirm Booking</h2>
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Choose Fare</h2>
               <button
                 onClick={() => setShowBookingModal(false)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
+                disabled={pricingLoading}
               >
                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2748,65 +3573,203 @@ function FlightResultContent() {
               </button>
             </div>
 
-            <div className="p-4 sm:p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <div className="text-xs text-gray-500 mb-2">Outbound</div>
-                  <div className="font-semibold text-gray-900 mb-1">{selectedOutboundFlight?.departure?.airport} → {selectedOutboundFlight?.arrival?.airport}</div>
-                  <div className="text-sm text-gray-700 mb-2">{selectedOutboundFlight?.departure?.time} - {selectedOutboundFlight?.arrival?.time}</div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-medium">{selectedOutboundFlight?.class}</span>
-                    {getCheckedBaggageLabel(selectedOutboundFlight) && (
-                      <span className="bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-medium">{getCheckedBaggageLabel(selectedOutboundFlight)}</span>
-                    )}
-                  </div>
-                  <div className="mt-3 text-right font-bold text-gray-900">${(selectedOutboundFlight?.price || 0).toFixed(2)}</div>
-                </div>
+            <div className="p-3 sm:p-6 space-y-8">
+              {(() => {
+                const outboundOptions = getFareOptionFlights(selectedOutboundFlight, flights);
+                const outboundCards = buildFareCardsFromFlights(outboundOptions);
+                const outboundSelected = outboundCards.find((c) => c.key === selectedOutboundFare) || outboundCards[0];
 
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <div className="text-xs text-gray-500 mb-2">Return</div>
-                  {selectedReturnFlight ? (
-                    <>
-                      <div className="font-semibold text-gray-900 mb-1">{selectedReturnFlight?.departure?.airport} → {selectedReturnFlight?.arrival?.airport}</div>
-                      <div className="text-sm text-gray-700 mb-2">{selectedReturnFlight?.departure?.time} - {selectedReturnFlight?.arrival?.time}</div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-medium">{selectedReturnFlight?.class}</span>
-                        {getCheckedBaggageLabel(selectedReturnFlight) && (
-                          <span className="bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-medium">{getCheckedBaggageLabel(selectedReturnFlight)}</span>
-                        )}
+                const returnOptions = selectedReturnFlight ? getFareOptionFlights(selectedReturnFlight, returnFlights) : [];
+                const returnCards = buildFareCardsFromFlights(returnOptions);
+                const returnSelected = selectedReturnFlight
+                  ? returnCards.find((c) => c.key === selectedReturnFare) || returnCards[0]
+                  : null;
+
+                const total = (outboundSelected?.price || 0) + (returnSelected?.price || 0);
+
+                const FareRow = ({
+                  title,
+                  subtitle,
+                  headerFlight,
+                  cards,
+                  selectedKey,
+                  onSelect,
+                }: {
+                  title: string;
+                  subtitle: string;
+                  headerFlight: any;
+                  cards: ReturnType<typeof buildFareCardsFromFlights>;
+                  selectedKey: FareKey;
+                  onSelect: (k: FareKey) => void;
+                }) => {
+                  const carrierCode = getCarrierCode(headerFlight);
+                  const airlineLabel = getCarrierLabel(carrierCode) || title;
+                  const logo = String(headerFlight?.logo || '') || '';
+
+                  const segs: any[] = Array.isArray(headerFlight?.originalOffer?.itineraries?.[0]?.segments)
+                    ? headerFlight.originalOffer.itineraries[0].segments
+                    : [];
+                  const firstSeg = segs[0];
+                  const lastSeg = segs[segs.length - 1];
+
+                  const depAt = String(firstSeg?.departure?.at || '');
+                  const arrAt = String(lastSeg?.arrival?.at || '');
+
+                  const depCode =
+                    String(headerFlight?.departure?.airport || '').trim() ||
+                    String(firstSeg?.departure?.iataCode || '').trim();
+                  const arrCode =
+                    String(headerFlight?.arrival?.airport || '').trim() ||
+                    String(lastSeg?.arrival?.iataCode || '').trim();
+
+                  const depTime =
+                    String(headerFlight?.departure?.time || '').trim() ||
+                    (depAt ? formatTimeHM(depAt) : '');
+                  const arrTime =
+                    String(headerFlight?.arrival?.time || '').trim() ||
+                    (arrAt ? formatTimeHM(arrAt) : '');
+
+                  const dateLabel = depAt ? formatDateDMY(depAt) : '';
+                  const routeLabel = depCode && arrCode ? `${depCode} ${depTime}  »  ${arrCode} ${arrTime}` : subtitle;
+
+                  return (
+                    <div>
+                      <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {logo ? (
+                            <img
+                              src={logo}
+                              alt={airlineLabel}
+                              className="w-12 h-8 object-contain flex-shrink-0"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : null}
+                          <div className="font-semibold text-gray-700 truncate">{airlineLabel}</div>
+                        </div>
+
+                        <div className="flex-1 text-center px-3 min-w-0">
+                          <div className="text-sm font-semibold text-gray-700 truncate">{routeLabel}</div>
+                        </div>
+
+                        <div className="text-sm font-semibold text-gray-700 whitespace-nowrap">{dateLabel}</div>
                       </div>
-                      <div className="mt-3 text-right font-bold text-gray-900">${(selectedReturnFlight?.price || 0).toFixed(2)}</div>
-                    </>
-                  ) : (
-                    <div className="text-sm text-gray-600">One-way booking</div>
-                  )}
-                </div>
-              </div>
 
-              <div className="border-t pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-center sm:text-left">
-                  <div className="text-xs text-gray-600">Total</div>
-                  <div className="text-2xl sm:text-3xl font-bold text-gray-900">
-                    ${(((selectedOutboundFlight?.price || 0) + (selectedReturnFlight?.price || 0))).toFixed(2)}
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {cards.map((c) => {
+                        const isSelected = c.key === selectedKey;
+                        return (
+                          <button
+                            key={c.key}
+                            type="button"
+                            onClick={() => onSelect(c.key)}
+                            className={`text-left bg-white rounded-lg shadow-sm border border-gray-200 ${c.accent} p-4 hover:bg-gray-50 transition-colors`}
+                            disabled={pricingLoading}
+                          >
+                            <div className="font-bold text-gray-800 underline underline-offset-4">{c.title}</div>
+                            <div className="mt-3 space-y-1 text-sm text-gray-600 max-h-28 overflow-y-auto pr-1">
+                              {c.features.map((f) => (
+                                <div key={f} className="flex items-start gap-2">
+                                  <span className="text-green-600 font-bold">✓</span>
+                                  <span>{f}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-4 flex items-center justify-between">
+                              <div className="text-xl font-bold text-gray-800">{c.price.toFixed(2)} <span className="text-sm font-medium text-gray-500">USD</span></div>
+                              <span
+                                className={`px-4 py-1.5 rounded-md font-bold text-sm ${
+                                  isSelected ? 'bg-green-700 text-white' : 'bg-gray-500 text-white'
+                                }`}
+                              >
+                                {isSelected ? 'Selected' : 'Select'}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-                <button
-                  onClick={() => {
-                    const total = (selectedOutboundFlight?.price || 0) + (selectedReturnFlight?.price || 0);
-                    const bookingData = {
-                      outbound: selectedOutboundFlight,
-                      return: selectedReturnFlight,
-                      total,
-                      searchCriteria,
-                    };
-                    localStorage.setItem('bookingData', JSON.stringify(bookingData));
-                    router.push('/booking');
-                  }}
-                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-8 sm:px-10 md:px-12 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg transition-all shadow-lg"
-                >
-                  Continue
-                </button>
-              </div>
+                  );
+                };
+
+                return (
+                  <>
+                    {searchCriteria.tripType === 'Multipoint' ? (
+                      <>
+                        {multiPointLegs.map((leg: any, idx: number) => {
+                          const selectedLegFlight = selectedMultiPointFlights?.[idx];
+                          if (!selectedLegFlight) return null;
+                          const legOptions = getFareOptionFlights(selectedLegFlight, leg?.flights || []);
+                          const legCards = buildFareCardsFromFlights(legOptions);
+                          const legSelectedKey =
+                            selectedMultiPointFares?.[idx] || getDefaultFareKeyForFlight(selectedLegFlight, legOptions);
+
+                          const seg = leg?.segment;
+                          const subtitle = seg
+                            ? `${seg.originLocationCode || ''}  →  ${seg.destinationLocationCode || ''}`
+                            : `${selectedLegFlight?.departure?.airport || ''}  →  ${selectedLegFlight?.arrival?.airport || ''}`;
+
+                          return (
+                            <FareRow
+                              key={`mp-leg-${idx}`}
+                              title={`Leg ${idx + 1}`}
+                              subtitle={subtitle}
+                              headerFlight={selectedLegFlight}
+                              cards={legCards}
+                              selectedKey={legSelectedKey}
+                              onSelect={(k) =>
+                                setSelectedMultiPointFares((prev) => ({
+                                  ...(prev || {}),
+                                  [idx]: k,
+                                }))
+                              }
+                            />
+                          );
+                        })}
+                      </>
+                    ) : (
+                      <>
+                        <FareRow
+                          title={String(selectedOutboundFlight?.airline || 'Airline')}
+                          subtitle={`${selectedOutboundFlight?.departure?.airport || ''} ${selectedOutboundFlight?.departure?.time || ''}  →  ${selectedOutboundFlight?.arrival?.airport || ''} ${selectedOutboundFlight?.arrival?.time || ''}`}
+                          headerFlight={selectedOutboundFlight}
+                          cards={outboundCards}
+                          selectedKey={selectedOutboundFare}
+                          onSelect={setSelectedOutboundFare}
+                        />
+
+                        {selectedReturnFlight ? (
+                          <FareRow
+                            title={String(selectedReturnFlight?.airline || 'Airline')}
+                            subtitle={`${selectedReturnFlight?.departure?.airport || ''} ${selectedReturnFlight?.departure?.time || ''}  →  ${selectedReturnFlight?.arrival?.airport || ''} ${selectedReturnFlight?.arrival?.time || ''}`}
+                            headerFlight={selectedReturnFlight}
+                            cards={returnCards}
+                            selectedKey={selectedReturnFare}
+                            onSelect={setSelectedReturnFare}
+                          />
+                        ) : null}
+                      </>
+                    )}
+
+                    <div className="bg-white rounded-lg shadow-sm px-4 py-4 flex items-center justify-center gap-6">
+                      <div className="text-gray-700">
+                        <span className="text-sm">Total</span>{' '}
+                        <span className="text-2xl font-bold text-gray-900">{total.toFixed(2)}</span>{' '}
+                        <span className="text-sm text-gray-500">USD</span>
+                      </div>
+                      <button
+                        onClick={handleFareContinue}
+                        disabled={pricingLoading}
+                        className="bg-green-700 hover:bg-green-800 disabled:opacity-60 text-white px-10 py-2.5 rounded-md font-bold"
+                      >
+                        {pricingLoading ? 'Loading…' : 'Continue'}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

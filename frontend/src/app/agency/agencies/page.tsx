@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import HeaderUserMenu from '@/components/HeaderUserMenu';
+import { loadStoredAgencies, type AgencyTableRow } from '@/lib/agencyStorage';
+import { copyTableToClipboard, exportTableToExcel, exportTableToPdf, printTable } from '@/lib/tableExport';
 
 export default function AgenciesPage() {
   const router = useRouter();
@@ -50,7 +52,7 @@ export default function AgenciesPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Table Data (Sample)
-  const [agencies, setAgencies] = useState([
+  const [agencies, setAgencies] = useState<AgencyTableRow[]>([
     {
       id: 1,
       status: 'Active',
@@ -65,10 +67,27 @@ export default function AgenciesPage() {
       region: '',
       registerDate: '12.05.2023 00:42',
       currency: 'USD',
-      credit: '3000',
+      credit: '3000.00',
+      totalBalance: '3000.00',
+      usedBalance: '50.78',
+      availableBalance: '2949.22',
       selected: false
     }
   ]);
+
+  useEffect(() => {
+    const stored = loadStoredAgencies();
+    if (!stored.length) return;
+
+    setAgencies((prev) => {
+      const existingIds = new Set(prev.map((a) => a.id));
+      const storedRows: AgencyTableRow[] = stored
+        .map((s) => ({ ...s.table, selected: false }))
+        .filter((row) => !existingIds.has(row.id));
+
+      return [...storedRows, ...prev];
+    });
+  }, []);
 
   // Column Visibility State
   const [visibleColumns, setVisibleColumns] = useState({
@@ -84,7 +103,10 @@ export default function AgenciesPage() {
     region: true,
     registerDate: true,
     currency: true,
-    credit: true
+    credit: true,
+    totalBalance: true,
+    usedBalance: true,
+    availableBalance: true
   });
 
   const [showColumnMenu, setShowColumnMenu] = useState(false);
@@ -113,8 +135,45 @@ export default function AgenciesPage() {
     ));
   };
 
-  const handleExport = (type: string) => {
-    console.log(`Exporting as ${type}`);
+  const handleExport = async (type: 'copy' | 'excel' | 'pdf' | 'print') => {
+    const headers = (
+      [
+        { key: 'status', on: visibleColumns.status },
+        { key: 'code', on: visibleColumns.code },
+        { key: 'accountingCode', on: visibleColumns.accountingCode },
+        { key: 'mainAgency', on: visibleColumns.mainAgency },
+        { key: 'agencyName', on: visibleColumns.agencyName },
+        { key: 'invoice', on: visibleColumns.invoice },
+        { key: 'administrator', on: visibleColumns.administrator },
+        { key: 'country', on: visibleColumns.country },
+        { key: 'city', on: visibleColumns.city },
+        { key: 'region', on: visibleColumns.region },
+        { key: 'registerDate', on: visibleColumns.registerDate },
+        { key: 'currency', on: visibleColumns.currency },
+        { key: 'credit', on: visibleColumns.credit },
+        { key: 'totalBalance', on: visibleColumns.totalBalance },
+        { key: 'usedBalance', on: visibleColumns.usedBalance },
+        { key: 'availableBalance', on: visibleColumns.availableBalance }
+      ] as const
+    )
+      .filter((x) => x.on)
+      .map((x) => x.key);
+
+    const rows = agencies.map((a) => ({ ...a } as unknown as Record<string, unknown>));
+
+    if (type === 'copy') {
+      await copyTableToClipboard(rows, headers as unknown as string[]);
+      return;
+    }
+    if (type === 'print') {
+      printTable('#export-table', 'Agencies');
+      return;
+    }
+    if (type === 'excel') {
+      await exportTableToExcel('agencies.xlsx', rows, headers as unknown as string[]);
+      return;
+    }
+    await exportTableToPdf('agencies.pdf', 'Agencies', rows, headers as unknown as string[]);
   };
 
   return (
@@ -187,6 +246,17 @@ export default function AgenciesPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
+                    </div>
+                  </a>
+                  <a 
+                    href="/agency/agencies/add" 
+                    className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="font-medium">Add Agent</span>
                     </div>
                   </a>
                   <a 
@@ -758,7 +828,7 @@ export default function AgenciesPage() {
 
             {/* Print */}
             <button
-              onClick={() => window.print()}
+              onClick={() => void handleExport('print')}
               className="bg-white border border-gray-400 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -795,7 +865,7 @@ export default function AgenciesPage() {
         {/* Table */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table id="export-table" className="w-full">
               <thead className="bg-gray-600 text-white">
                 <tr>
                   <th className="px-4 py-3 text-left">
@@ -818,6 +888,10 @@ export default function AgenciesPage() {
                   {visibleColumns.registerDate && <th className="px-4 py-3 text-left font-medium">Register Date</th>}
                   {visibleColumns.currency && <th className="px-4 py-3 text-left font-medium">Currency</th>}
                   {visibleColumns.credit && <th className="px-4 py-3 text-left font-medium">Credit</th>}
+                  {visibleColumns.totalBalance && <th className="px-4 py-3 text-left font-medium">Total Balance</th>}
+                  {visibleColumns.usedBalance && <th className="px-4 py-3 text-left font-medium">Used Balance</th>}
+                  {visibleColumns.availableBalance && <th className="px-4 py-3 text-left font-medium">Available Balance</th>}
+                  <th className="px-4 py-3 text-left font-medium"></th>
                 </tr>
               </thead>
               <tbody>
@@ -846,15 +920,25 @@ export default function AgenciesPage() {
                     {visibleColumns.registerDate && <td className="px-4 py-3 text-gray-900">{agency.registerDate}</td>}
                     {visibleColumns.currency && <td className="px-4 py-3 text-gray-900">{agency.currency}</td>}
                     {visibleColumns.credit && <td className="px-4 py-3 text-gray-900">{agency.credit}</td>}
+                    {visibleColumns.totalBalance && <td className="px-4 py-3 text-gray-900">{agency.totalBalance}</td>}
+                    {visibleColumns.usedBalance && <td className="px-4 py-3 text-gray-900">{agency.usedBalance}</td>}
+                    {visibleColumns.availableBalance && <td className="px-4 py-3 text-gray-900">{agency.availableBalance}</td>}
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/agency/agencies/${agency.id}`)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md font-medium"
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                        </svg>
+                        Detail
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-
-          {/* Horizontal Scroll Indicator */}
-          <div className="bg-gray-200 h-2">
-            <div className="bg-gray-400 h-2 w-1/3"></div>
           </div>
         </div>
       </div>

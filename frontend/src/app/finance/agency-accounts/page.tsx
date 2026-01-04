@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import HeaderUserMenu from '@/components/HeaderUserMenu';
+import { copyTableToClipboard, exportTableToExcel, exportTableToPdf, printTable } from '@/lib/tableExport';
+import { loadStoredAgencies } from '@/lib/agencyStorage';
 
 type AgencyAccountRow = {
+  id: string;
   mainAgency: string;
   agency: string;
   invoice: string;
@@ -16,10 +19,30 @@ type AgencyAccountRow = {
   currency: string;
 };
 
+type Filters = {
+  agency: string;
+  invoice: string;
+  seller: string;
+  status: string;
+  accountType: string;
+};
+
+type Notice = { type: 'success' | 'error'; message: string };
+
+function normalizeText(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function includesText(haystack: string, needle: string) {
+  const n = normalizeText(needle);
+  if (!n) return true;
+  return normalizeText(haystack).includes(n);
+}
+
 export default function FinanceAgencyAccountsPage() {
   const router = useRouter();
 
-  // Navigation Dropdowns State
+  // Navigation Dropdowns State (legacy navbar markup)
   const [showAgencyDropdown, setShowAgencyDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [showFareRuleSubmenu, setShowFareRuleSubmenu] = useState(false);
@@ -30,6 +53,8 @@ export default function FinanceAgencyAccountsPage() {
 
   // UI State
   const [activeTab, setActiveTab] = useState<'accounts' | 'detail' | 'discharge'>('accounts');
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   // Search Criteria State
   const [agency, setAgency] = useState('True Travel');
@@ -38,32 +63,89 @@ export default function FinanceAgencyAccountsPage() {
   const [status, setStatus] = useState('All');
   const [accountType, setAccountType] = useState('USD');
 
+  const [appliedFilters, setAppliedFilters] = useState<Filters>({
+    agency: 'True Travel',
+    invoice: '',
+    seller: '',
+    status: 'All',
+    accountType: 'USD',
+  });
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Table Data (matches screenshot sample)
-  const [rows] = useState<AgencyAccountRow[]>([
-    {
-      mainAgency: '',
-      agency: 'True Travel',
-      invoice: 'True Travel',
-      administrator: 'Ahmed Hasan',
-      pendingCommission: '5.01',
-      outstandingBalance: '1010.27',
-      netBalance: '1015.28',
-      currency: 'USD',
-    },
-  ]);
+  // IMPORTANT: avoid reading localStorage during initial render to prevent hydration mismatches.
+  const [agencyOptions, setAgencyOptions] = useState<string[]>(['True Travel']);
 
-  const totalRecords = rows.length;
+  useEffect(() => {
+    const stored = loadStoredAgencies();
+    const names = stored
+      .map((a) => a?.table?.agencyName || a?.form?.general?.companyName)
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      .map((v) => v.trim());
+    const unique = Array.from(new Set(['True Travel', ...names]));
+    unique.sort((a, b) => a.localeCompare(b));
+    setAgencyOptions(unique);
+  }, []);
+
+  const rows = useMemo<AgencyAccountRow[]>(() => {
+    const agencies = agencyOptions.length > 0 ? agencyOptions : ['True Travel'];
+    const admins = ['Ahmed Hasan', 'Sara Ali', 'John Smith', 'Noura Ben', 'Meryem A.'];
+
+    return Array.from({ length: Math.max(agencies.length * 3, 18) }, (_, index) => {
+      const agencyName = agencies[index % agencies.length];
+      const admin = admins[index % admins.length];
+      const base = 1000 + index * 37;
+      const pending = (5 + (index % 7) * 0.73).toFixed(2);
+      const outstanding = (base + (index % 11) * 3.12).toFixed(2);
+      const net = (Number(outstanding) + Number(pending)).toFixed(2);
+      return {
+        id: `row-${index + 1}`,
+        mainAgency: '',
+        agency: agencyName,
+        invoice: agencyName,
+        administrator: admin,
+        pendingCommission: pending,
+        outstandingBalance: outstanding,
+        netBalance: net,
+        currency: 'USD',
+      };
+    });
+  }, [agencyOptions]);
+
+  const filteredRows = useMemo(() => {
+    const filters = appliedFilters;
+    return rows.filter((row) => {
+      const matchesAgency = !filters.agency || filters.agency === 'All' ? true : row.agency === filters.agency;
+      const matchesInvoice = includesText(row.invoice, filters.invoice);
+      const matchesSeller = includesText(row.administrator, filters.seller);
+      const matchesAccountType = !filters.accountType || filters.accountType === 'All' ? true : row.currency === filters.accountType;
+      const matchesStatus = !filters.status || filters.status === 'All' ? true : true;
+      return matchesAgency && matchesInvoice && matchesSeller && matchesAccountType && matchesStatus;
+    });
+  }, [rows, appliedFilters]);
+
+  const totalRecords = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRecords / itemsPerPage));
+
+  useEffect(() => {
+    if (currentPage < 1) setCurrentPage(1);
+    else if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const pagedRows = useMemo(() => {
+    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+    const startIndex = (safePage - 1) * itemsPerPage;
+    return filteredRows.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredRows, currentPage, itemsPerPage, totalPages]);
 
   const handleLogout = () => {
     document.cookie = 'isLoggedIn=false; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
     router.push('/');
   };
 
-  // Close fare rule submenu when clicking outside
+  // Close fare rule submenu when clicking outside (legacy navbar)
   useEffect(() => {
     const handleClickOutside = () => {
       if (fareRuleSubmenuLocked) {
@@ -77,15 +159,37 @@ export default function FinanceAgencyAccountsPage() {
   }, [fareRuleSubmenuLocked]);
 
   const handleSearch = () => {
-    console.log('Searching agency accounts with criteria:', {
-      agency,
-      invoice,
-      seller,
-      status,
-      accountType,
-      currentPage,
-      itemsPerPage,
-    });
+    setNotice(null);
+    setAppliedFilters({ agency, invoice, seller, status, accountType });
+    setCurrentPage(1);
+  };
+
+  const handleExport = async (type: 'copy' | 'excel' | 'pdf' | 'print') => {
+    const data = filteredRows.map((r) => ({ ...r } as unknown as Record<string, unknown>));
+    const headers = [
+      'mainAgency',
+      'agency',
+      'invoice',
+      'administrator',
+      'pendingCommission',
+      'outstandingBalance',
+      'netBalance',
+      'currency'
+    ];
+
+    if (type === 'print') {
+      printTable('#export-table', 'Agency Accounts');
+      return;
+    }
+    if (type === 'copy') {
+      await copyTableToClipboard(data, headers);
+      return;
+    }
+    if (type === 'excel') {
+      await exportTableToExcel('agency-accounts.xlsx', data, headers);
+      return;
+    }
+    await exportTableToPdf('agency-accounts.pdf', 'Agency Accounts', data, headers);
   };
 
   return (
@@ -145,6 +249,14 @@ export default function FinanceAgencyAccountsPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
+                    </div>
+                  </a>
+                  <a href="/agency/agencies/add" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="font-medium">Add Agent</span>
                     </div>
                   </a>
                   <a href="/agency/sales-representatives" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
@@ -510,6 +622,18 @@ export default function FinanceAgencyAccountsPage() {
           </div>
         </div>
 
+        {notice && (
+          <div
+            className={
+              'mb-6 rounded-md border px-4 py-3 text-sm ' +
+              (notice.type === 'success' ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800')
+            }
+            role="status"
+          >
+            {notice.message}
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="mb-6 border-b border-gray-200">
           <div className="flex items-center gap-10">
@@ -554,14 +678,16 @@ export default function FinanceAgencyAccountsPage() {
           </div>
         </div>
 
-        {/* Searching Criterias */}
-        <div className="bg-white border border-orange-500 rounded-sm overflow-hidden mb-6">
-          <div className="bg-orange-500 text-white px-5 py-3">
-            <h3 className="text-xl font-medium">Searching Criterias</h3>
-          </div>
+        {activeTab === 'accounts' && (
+          <>
+            {/* Searching Criterias */}
+            <div className="bg-white border border-orange-500 rounded-sm overflow-hidden mb-6">
+              <div className="bg-orange-500 text-white px-5 py-3">
+                <h3 className="text-xl font-medium">Searching Criterias</h3>
+              </div>
 
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               {/* Agency */}
               <div>
                 <label className="block text-sm font-medium text-orange-500 mb-2">Agency</label>
@@ -570,7 +696,11 @@ export default function FinanceAgencyAccountsPage() {
                   onChange={(e) => setAgency(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-none bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 >
-                  <option value="True Travel">True Travel</option>
+                  {agencyOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -647,9 +777,9 @@ export default function FinanceAgencyAccountsPage() {
               {/* Spacer cells for layout */}
               <div className="hidden lg:block" />
               <div className="hidden lg:block" />
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
         {/* Summary + Actions */}
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-6">
@@ -721,28 +851,44 @@ export default function FinanceAgencyAccountsPage() {
                 </svg>
               </button>
 
-              <button type="button" className="px-4 py-2 border border-teal-400 rounded-md bg-white text-teal-600 hover:bg-teal-50 transition-colors font-medium flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleExport('copy')}
+                className="px-4 py-2 border border-teal-400 rounded-md bg-white text-teal-600 hover:bg-teal-50 transition-colors font-medium flex items-center gap-2"
+              >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm4 4H8c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 18H8V7h12v16z" />
                 </svg>
                 <span>COPY</span>
               </button>
 
-              <button type="button" className="px-4 py-2 border border-yellow-400 rounded-md bg-white text-yellow-600 hover:bg-yellow-50 transition-colors font-medium flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleExport('excel')}
+                className="px-4 py-2 border border-yellow-400 rounded-md bg-white text-yellow-600 hover:bg-yellow-50 transition-colors font-medium flex items-center gap-2"
+              >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8 14H9v-2h2v2zm0-4H9V7h2v6zm6 4h-4v-2h4v2zm0-4h-4v-2h4v2zm0-4h-4V7h4v2z" />
                 </svg>
                 <span>EXCEL</span>
               </button>
 
-              <button type="button" className="px-4 py-2 border border-purple-400 rounded-md bg-white text-purple-600 hover:bg-purple-50 transition-colors font-medium flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleExport('pdf')}
+                className="px-4 py-2 border border-purple-400 rounded-md bg-white text-purple-600 hover:bg-purple-50 transition-colors font-medium flex items-center gap-2"
+              >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-2.83.48-5.53-.3-7.58-2.05l1.43-1.43A7.93 7.93 0 0013 19.93zm0-3.06c-1.7-.45-3.2-1.37-4.36-2.64l1.42-1.42A5.98 5.98 0 0013 15.87zm0-3.1c-.86-.36-1.62-.9-2.22-1.56l1.42-1.42c.22.24.48.45.8.61V8h2v5.77z" />
                 </svg>
                 <span>PDF</span>
               </button>
 
-              <button type="button" className="px-4 py-2 border border-gray-500 rounded-md bg-white text-gray-700 hover:bg-gray-50 transition-colors font-medium flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleExport('print')}
+                className="px-4 py-2 border border-gray-500 rounded-md bg-white text-gray-700 hover:bg-gray-50 transition-colors font-medium flex items-center gap-2"
+              >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-10c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zM18 3H6v4h12V3z" />
                 </svg>
@@ -765,7 +911,10 @@ export default function FinanceAgencyAccountsPage() {
               />
               <select
                 value={itemsPerPage}
-                onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
+                onChange={(e) => {
+                  setItemsPerPage(parseInt(e.target.value));
+                  setCurrentPage(1);
+                }}
                 className="w-28 px-3 py-2 border border-gray-300 rounded-none bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
                 <option value={10}>10</option>
@@ -780,7 +929,7 @@ export default function FinanceAgencyAccountsPage() {
         {/* Table */}
         <div className="bg-white border border-gray-300 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table id="export-table" className="w-full">
               <thead className="bg-gray-700 text-white">
                 <tr>
                   <th className="px-4 py-4 text-left font-semibold">Main Agency</th>
@@ -795,15 +944,15 @@ export default function FinanceAgencyAccountsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 ? (
+                {filteredRows.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-10 text-center text-gray-700">
                       No data available in table
                     </td>
                   </tr>
                 ) : (
-                  rows.map((row, idx) => (
-                    <tr key={idx} className="border-t border-gray-200 bg-gray-50">
+                  pagedRows.map((row) => (
+                    <tr key={row.id} className="border-t border-gray-200 bg-gray-50">
                       <td className="px-4 py-4 text-sm text-gray-700">{row.mainAgency}</td>
                       <td className="px-4 py-4 text-sm text-gray-700">{row.agency}</td>
                       <td className="px-4 py-4 text-sm text-gray-700">{row.invoice}</td>
@@ -819,7 +968,14 @@ export default function FinanceAgencyAccountsPage() {
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-800 text-center">{row.currency}</td>
                       <td className="px-4 py-4 text-center">
-                        <button type="button" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md font-medium">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md font-medium"
+                          onClick={() => {
+                            setSelectedRowId(row.id);
+                            setActiveTab('detail');
+                          }}
+                        >
                           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
                           </svg>
@@ -833,6 +989,111 @@ export default function FinanceAgencyAccountsPage() {
             </table>
           </div>
         </div>
+          </>
+        )}
+
+        {activeTab === 'detail' && (
+          <div className="bg-white border border-orange-500 rounded-sm overflow-hidden">
+            <div className="bg-orange-500 text-white px-5 py-3">
+              <h3 className="text-xl font-medium">Agency Accounts ( Detail )</h3>
+            </div>
+            <div className="p-6">
+              {(() => {
+                const row = rows.find((r) => r.id === selectedRowId) ?? null;
+                if (!row) {
+                  return (
+                    <div className="text-gray-700">
+                      <p className="mb-4">Select an account in the list and click “Detail”.</p>
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors font-medium"
+                        onClick={() => setActiveTab('accounts')}
+                      >
+                        Back to Accounts
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="border border-gray-200 rounded-md p-4">
+                        <div className="text-sm text-gray-500">Agency</div>
+                        <div className="text-base font-medium text-gray-900">{row.agency}</div>
+                      </div>
+                      <div className="border border-gray-200 rounded-md p-4">
+                        <div className="text-sm text-gray-500">Invoice</div>
+                        <div className="text-base font-medium text-gray-900">{row.invoice}</div>
+                      </div>
+                      <div className="border border-gray-200 rounded-md p-4">
+                        <div className="text-sm text-gray-500">Administrator</div>
+                        <div className="text-base font-medium text-gray-900">{row.administrator}</div>
+                      </div>
+                      <div className="border border-gray-200 rounded-md p-4">
+                        <div className="text-sm text-gray-500">Currency</div>
+                        <div className="text-base font-medium text-gray-900">{row.currency}</div>
+                      </div>
+                      <div className="border border-gray-200 rounded-md p-4">
+                        <div className="text-sm text-gray-500">Pending Commission</div>
+                        <div className="text-base font-medium text-gray-900">{row.pendingCommission}</div>
+                      </div>
+                      <div className="border border-gray-200 rounded-md p-4">
+                        <div className="text-sm text-gray-500">Outstanding Balance</div>
+                        <div className="text-base font-medium text-gray-900">{row.outstandingBalance}</div>
+                      </div>
+                      <div className="border border-gray-200 rounded-md p-4">
+                        <div className="text-sm text-gray-500">Net Balance</div>
+                        <div className="text-base font-medium text-gray-900">{row.netBalance}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors font-medium"
+                        onClick={() => setActiveTab('accounts')}
+                      >
+                        Back to Accounts
+                      </button>
+                      <a
+                        href="/finance/receiving-discharge"
+                        className="px-4 py-2 border border-orange-500 text-orange-600 rounded-md hover:bg-orange-50 transition-colors font-medium"
+                      >
+                        Receiving / Discharge
+                      </a>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'discharge' && (
+          <div className="bg-white border border-orange-500 rounded-sm overflow-hidden">
+            <div className="bg-orange-500 text-white px-5 py-3">
+              <h3 className="text-xl font-medium">Agency ( Discharge / Collection )</h3>
+            </div>
+            <div className="p-6">
+              <div className="text-gray-700 mb-6">Use the finance forms to record cash movements and transfers.</div>
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href="/finance/receiving-discharge"
+                  className="px-5 py-3 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors font-medium"
+                >
+                  Receiving &amp; Discharge
+                </a>
+                <a
+                  href="/finance/virement"
+                  className="px-5 py-3 border border-orange-500 text-orange-600 rounded-md hover:bg-orange-50 transition-colors font-medium"
+                >
+                  Virement
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Footer */}

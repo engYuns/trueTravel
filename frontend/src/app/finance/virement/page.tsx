@@ -4,6 +4,47 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import HeaderUserMenu from '@/components/HeaderUserMenu';
+import { loadStoredAgencies } from '@/lib/agencyStorage';
+
+type Notice = { type: 'success' | 'error'; message: string };
+
+type VirementRecord = {
+  id: string;
+  createdAt: string;
+  fromAccountType: string;
+  fromAccountName: string;
+  transactionType: string;
+  amount: number;
+  currency: string;
+  toAccountType: string;
+  toAccountName: string;
+  description: string;
+};
+
+const STORAGE_KEY = 'trueTravel.financeVirement.v1';
+
+function parseAmount(raw: string): number | null {
+  const cleaned = raw.replace(/,/g, '').trim();
+  if (!cleaned) return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value)) return null;
+  return value;
+}
+
+function safeParseArray(raw: string | null): unknown[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function makeId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `vir-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 export default function FinanceVirementPage() {
   const router = useRouter();
@@ -31,6 +72,24 @@ export default function FinanceVirementPage() {
 
   const [description, setDescription] = useState('');
 
+  const [notice, setNotice] = useState<Notice | null>(null);
+
+  // IMPORTANT: avoid reading localStorage during initial render to prevent hydration mismatches.
+  const [agencyOptions, setAgencyOptions] = useState<string[]>(['True Travel']);
+
+  useEffect(() => {
+    const stored = loadStoredAgencies();
+    const names = stored
+      .map((a) => a?.table?.agencyName || a?.form?.general?.companyName)
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      .map((v) => v.trim());
+    const unique = Array.from(new Set(['True Travel', ...names]));
+    unique.sort((a, b) => a.localeCompare(b));
+    setAgencyOptions(unique);
+  }, []);
+
+  const toAgencyOptions = agencyOptions.filter((n) => n !== fromAccountName);
+
   const handleLogout = () => {
     document.cookie = 'isLoggedIn=false; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
     router.push('/');
@@ -47,6 +106,47 @@ export default function FinanceVirementPage() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [fareRuleSubmenuLocked]);
+
+  const handleSave = () => {
+    setNotice(null);
+
+    const parsedAmount = parseAmount(amount);
+    if (parsedAmount === null || parsedAmount <= 0) {
+      setNotice({ type: 'error', message: 'Amount must be a valid number greater than 0.' });
+      return;
+    }
+    if (!fromAccountName.trim()) {
+      setNotice({ type: 'error', message: 'From Account Name is required.' });
+      return;
+    }
+    if (!toAccountName || toAccountName === 'Select') {
+      setNotice({ type: 'error', message: 'Please choose a To Account Name.' });
+      return;
+    }
+    if (toAccountName === fromAccountName) {
+      setNotice({ type: 'error', message: 'From and To accounts must be different.' });
+      return;
+    }
+
+    const record: VirementRecord = {
+      id: makeId(),
+      createdAt: new Date().toISOString(),
+      fromAccountType,
+      fromAccountName: fromAccountName.trim(),
+      transactionType,
+      amount: parsedAmount,
+      currency,
+      toAccountType,
+      toAccountName,
+      description: description.trim(),
+    };
+
+    const current = safeParseArray(window.localStorage.getItem(STORAGE_KEY)) as VirementRecord[];
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([record, ...current]));
+    setNotice({ type: 'success', message: 'Virement saved successfully.' });
+    setAmount('');
+    setDescription('');
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -105,6 +205,14 @@ export default function FinanceVirementPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                       <span className="font-medium">Agencies</span>
+                    </div>
+                  </a>
+                  <a href="/agency/agencies/add" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="font-medium">Add Agent</span>
                     </div>
                   </a>
                   <a href="/agency/sales-representatives" className="block px-4 py-3 text-white hover:bg-gray-800 transition-colors">
@@ -468,6 +576,18 @@ export default function FinanceVirementPage() {
           </div>
         </div>
 
+        {notice && (
+          <div
+            className={
+              'mb-6 rounded-md border px-4 py-3 text-sm ' +
+              (notice.type === 'success' ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800')
+            }
+            role="status"
+          >
+            {notice.message}
+          </div>
+        )}
+
         <div className="bg-white border border-orange-500 rounded-sm overflow-hidden">
           <div className="bg-orange-500 text-white px-5 py-4">
             <h3 className="text-2xl font-medium">Virement</h3>
@@ -492,9 +612,19 @@ export default function FinanceVirementPage() {
                 <input
                   type="text"
                   value={fromAccountName}
-                  onChange={(e) => setFromAccountName(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setFromAccountName(next);
+                    if (toAccountName === next) setToAccountName('Select');
+                  }}
+                  list="finance-virement-from-account-name"
                   className="w-full px-4 py-3 border border-red-200 bg-white rounded-none text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
+                <datalist id="finance-virement-from-account-name">
+                  {agencyOptions.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
               </div>
 
               <div className="lg:col-span-4">
@@ -550,6 +680,11 @@ export default function FinanceVirementPage() {
                   className="w-full px-4 py-3 border border-red-200 bg-white rounded-none text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 >
                   <option value="Select">Select</option>
+                  {toAgencyOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -563,13 +698,25 @@ export default function FinanceVirementPage() {
                 />
               </div>
 
-              <div className="lg:col-span-3 flex items-end justify-start">
+              <div className="lg:col-span-3 flex items-end justify-start gap-3">
                 <button
                   type="button"
                   className="px-10 py-3 bg-rose-400 hover:bg-rose-500 text-white rounded-md transition-colors font-medium"
-                  onClick={() => console.log('Save virement')}
+                  onClick={handleSave}
                 >
                   Save
+                </button>
+                <button
+                  type="button"
+                  className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md transition-colors font-medium"
+                  onClick={() => {
+                    setNotice(null);
+                    setAmount('');
+                    setToAccountName('Select');
+                    setDescription('');
+                  }}
+                >
+                  Clear
                 </button>
               </div>
             </div>

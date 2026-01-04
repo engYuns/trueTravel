@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type HeaderUserMenuProps = {
   onLogout: () => void;
@@ -11,16 +11,49 @@ type HeaderUserMenuProps = {
   languageLabel?: string;
 };
 
+function getCookieValue(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const parts = document.cookie.split(';').map(p => p.trim());
+  for (const part of parts) {
+    if (part.startsWith(`${name}=`)) return decodeURIComponent(part.slice(name.length + 1));
+  }
+  return null;
+}
+
+function titleCaseFromIdentifier(value: string): string {
+  const cleaned = value
+    .trim()
+    .replace(/[_\.\-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+  if (!cleaned) return 'User';
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function getInitialsFromName(name: string): string {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const first = parts[0]?.[0] ?? 'U';
+  const second = parts[1]?.[0] ?? parts[0]?.[1] ?? '';
+  return (first + second).toUpperCase();
+}
+
 export default function HeaderUserMenu({
   onLogout,
   notificationCount = 9,
   phone = '+964 750 328 2768',
-  initials = 'YP',
-  userName = 'Younis Pshtiwan',
-  languageLabel = '🇬🇧 English (USD)',
+  initials,
+  userName,
+  languageLabel,
 }: HeaderUserMenuProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [cookieFallbackName, setCookieFallbackName] = useState<string | null>(null);
 
   const notificationsRef = useRef<HTMLDivElement | null>(null);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
@@ -42,10 +75,37 @@ export default function HeaderUserMenu({
     return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
   }, []);
 
+  useEffect(() => {
+    if (userName && userName.trim()) return;
+
+    const email = getCookieValue('userEmail');
+    if (!email) return;
+
+    const beforeAt = email.split('@')[0] || email;
+    const inferred = titleCaseFromIdentifier(beforeAt);
+    if (inferred) setCookieFallbackName(inferred);
+  }, [userName]);
+
+  const resolvedUserName = useMemo(() => {
+    if (userName && userName.trim()) return userName.trim();
+    if (cookieFallbackName && cookieFallbackName.trim()) return cookieFallbackName.trim();
+    return 'User';
+  }, [cookieFallbackName, userName]);
+
+  const resolvedInitials = useMemo(() => {
+    if (initials && initials.trim()) return initials.trim();
+    return getInitialsFromName(resolvedUserName);
+  }, [initials, resolvedUserName]);
+
+  const resolvedLanguageLabel = useMemo(() => {
+    if (languageLabel && languageLabel.trim()) return languageLabel.trim();
+    return 'English (USD)';
+  }, [languageLabel]);
+
   return (
     <div className="flex items-center space-x-6">
       {/* User Information */}
-      <div className="flex items-center space-x-4 border-r border-gray-300 pr-6">
+      <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-2">
           <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
             <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
@@ -84,45 +144,50 @@ export default function HeaderUserMenu({
             </div>
 
             <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-xs font-bold">{initials}</span>
+              <span className="text-white text-xs font-bold">{resolvedInitials}</span>
             </div>
           </div>
 
-          <div className="text-sm">
-            <p className="font-medium text-gray-800">{userName}</p>
-            <p className="text-xs text-gray-500">{languageLabel}</p>
+          <div className="relative" ref={profileMenuRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowProfileMenu(v => !v);
+                setShowNotifications(false);
+              }}
+              className="text-sm text-left hover:opacity-80 transition-opacity"
+              aria-label="User menu"
+            >
+              <p className="font-medium text-gray-800">{resolvedUserName}</p>
+              <p className="text-xs text-gray-500">{resolvedLanguageLabel}</p>
+            </button>
+
+            {showProfileMenu && (
+              <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-[999999] overflow-hidden">
+                <a
+                  href="/profile"
+                  onClick={() => setShowProfileMenu(false)}
+                  className="flex items-center gap-3 px-4 py-3 text-sm text-gray-800 hover:bg-gray-50 transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                  </svg>
+                  <span className="font-medium">My Profile</span>
+                </a>
+                <div className="h-px bg-gray-100" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    onLogout();
+                  }}
+                  className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-gray-50 transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-      </div>
-
-      {/* Profile */}
-      <div className="flex items-center space-x-4">
-        <div className="relative" ref={profileMenuRef}>
-          <button
-            type="button"
-            onClick={() => {
-              setShowProfileMenu(v => !v);
-              setShowNotifications(false);
-            }}
-            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            aria-label="Profile"
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-            </svg>
-          </button>
-
-          {showProfileMenu && (
-            <div className="absolute right-0 top-full mt-2 w-44 bg-white rounded-lg shadow-lg border border-gray-200 z-[999999] overflow-hidden">
-              <button
-                type="button"
-                onClick={onLogout}
-                className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-gray-50 transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>
