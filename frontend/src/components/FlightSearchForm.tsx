@@ -576,7 +576,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                         value={seg.departureDate}
                         onChange={(e) => updateSegment(index, { departureDate: e.target.value })}
                         min={new Date().toISOString().split('T')[0]}
-                        className="w-full h-12 px-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900"
+                        className="tt-date-input w-full h-12 px-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900"
                         required
                       />
                       <span
@@ -780,7 +780,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                 value={departureDate}
                 onChange={(e) => setDepartureDate(e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
-                className="w-full h-12 px-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900"
+                className="tt-date-input w-full h-12 px-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900"
                 required
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" aria-hidden="true">
@@ -803,7 +803,7 @@ export default function FlightSearchForm({ initialData, onSearchComplete }: Flig
                 onChange={(e) => setReturnDate(e.target.value)}
                 min={departureDate || new Date().toISOString().split('T')[0]}
                 disabled={tripType === 'Oneway'}
-                className="w-full h-12 px-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
+                className="tt-date-input w-full h-12 px-4 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#155dfc] focus:border-transparent text-sm text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" aria-hidden="true">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

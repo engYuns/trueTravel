@@ -198,6 +198,12 @@ select:-webkit-autofill {
   }
 }
 
+/* Hide the native calendar icon on date inputs (use custom icon instead) */
+.tt-date-input::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  display: none;
+}
+
 @media (min-width: 1024px) {
   .mobile-container {
     padding-left: 2rem;
